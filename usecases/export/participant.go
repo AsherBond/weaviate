@@ -28,6 +28,7 @@ import (
 	"github.com/weaviate/weaviate/entities/export"
 	"github.com/weaviate/weaviate/entities/modulecapabilities"
 	"github.com/weaviate/weaviate/usecases/config"
+	configRuntime "github.com/weaviate/weaviate/usecases/config/runtime"
 )
 
 const (
@@ -63,6 +64,10 @@ type Participant struct {
 	localNode    string
 	metrics      *ExportMetrics
 
+	// exportParallelism controls the number of concurrent scan workers.
+	// nil or 0 means GOMAXPROCS.
+	exportParallelism *configRuntime.DynamicValue[int]
+
 	// exportWg tracks in-flight export goroutines so Shutdown can wait for
 	// them to finish their cleanup (final status flush, sibling abort, metadata
 	// promotion) before the server process exits.
@@ -91,6 +96,7 @@ func NewParticipant(
 	nodeResolver NodeResolver,
 	localNode string,
 	metrics *ExportMetrics,
+	exportParallelism *configRuntime.DynamicValue[int],
 ) *Participant {
 	if client == nil {
 		panic("export: participant requires a non-nil client")
@@ -100,15 +106,16 @@ func NewParticipant(
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Participant{
-		shutdownCtx:    ctx,
-		shutdownCancel: cancel,
-		selector:       selector,
-		backends:       backends,
-		logger:         logger,
-		client:         client,
-		nodeResolver:   nodeResolver,
-		localNode:      localNode,
-		metrics:        metrics,
+		shutdownCtx:       ctx,
+		shutdownCancel:    cancel,
+		selector:          selector,
+		backends:          backends,
+		logger:            logger,
+		client:            client,
+		nodeResolver:      nodeResolver,
+		localNode:         localNode,
+		metrics:           metrics,
+		exportParallelism: exportParallelism,
 	}
 }
 
@@ -655,7 +662,7 @@ func (p *Participant) doExport(ctx context.Context, backend modulecapabilities.B
 	}
 
 	// Scan all snapshots in parallel using an N-worker pool.
-	parallelism := runtime.GOMAXPROCS(0) * 2
+	parallelism := p.getExportParallelism()
 	jobCh := make(chan scanJob, parallelism)
 
 	// Start N workers that process scan jobs.
@@ -1202,4 +1209,18 @@ func (p *Participant) startNodeStatusWriter(
 			wg.Wait()
 		})
 	}
+}
+
+// getExportParallelism returns the number of concurrent scan workers for the
+// export pipeline. It reads the dynamic config value (settable via
+// EXPORT_PARALLELISM env var or runtime overrides). A value of 0 (default)
+// means GOMAXPROCS — one worker per CPU, which saturates CPU (Zstd
+// compression) and disk I/O without over-subscribing under concurrent load.
+func (p *Participant) getExportParallelism() int {
+	if p.exportParallelism != nil {
+		if n := p.exportParallelism.Get(); n > 0 {
+			return n
+		}
+	}
+	return runtime.GOMAXPROCS(0)
 }
