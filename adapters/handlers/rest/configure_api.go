@@ -2201,6 +2201,7 @@ func initRuntimeOverrides(appState *state.State) *configRuntime.ConfigManager[co
 		registered.ObjectsTTLConcurrencyFactor = appState.ServerConfig.Config.ObjectsTTLConcurrencyFactor
 		registered.ExportEnabled = appState.ServerConfig.Config.Export.Enabled
 		registered.ExportDefaultBucket = appState.ServerConfig.Config.Export.DefaultBucket
+		registered.ExportDefaultPath = appState.ServerConfig.Config.Export.DefaultPath
 		registered.ExportParallelism = appState.ServerConfig.Config.ExportParallelism
 
 		if appState.ServerConfig.Config.Authentication.OIDC.Enabled {
