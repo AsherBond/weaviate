@@ -20,13 +20,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testToolName = "my-tool"
+
 func TestGetDescription(t *testing.T) {
 	configs := map[string]ToolConfig{
-		"my-tool": {Description: "custom desc"},
+		testToolName: {Description: "custom desc"},
 	}
 
 	t.Run("returns custom description when present", func(t *testing.T) {
-		assert.Equal(t, "custom desc", GetDescription(configs, "my-tool", "default"))
+		assert.Equal(t, "custom desc", GetDescription(configs, testToolName, "default"))
 	})
 
 	t.Run("returns default when tool not in config", func(t *testing.T) {
@@ -34,12 +36,12 @@ func TestGetDescription(t *testing.T) {
 	})
 
 	t.Run("returns default when configs is nil", func(t *testing.T) {
-		assert.Equal(t, "default", GetDescription(nil, "my-tool", "default"))
+		assert.Equal(t, "default", GetDescription(nil, testToolName, "default"))
 	})
 
 	t.Run("returns default when description is empty", func(t *testing.T) {
-		configs := map[string]ToolConfig{"my-tool": {}}
-		assert.Equal(t, "default", GetDescription(configs, "my-tool", "default"))
+		configs := map[string]ToolConfig{testToolName: {}}
+		assert.Equal(t, "default", GetDescription(configs, testToolName, "default"))
 	})
 }
 
@@ -58,14 +60,14 @@ func TestApplySchemaDescriptions(t *testing.T) {
 			}),
 		}
 		configs := map[string]ToolConfig{
-			"my-tool": {
+			testToolName: {
 				Arguments: map[string]string{
 					"query": "custom query description",
 				},
 			},
 		}
 
-		ApplySchemaDescriptions(&tool, "my-tool", configs)
+		ApplySchemaDescriptions(&tool, testToolName, configs)
 
 		var schema map[string]any
 		require.NoError(t, json.Unmarshal(tool.RawInputSchema, &schema))
@@ -81,14 +83,14 @@ func TestApplySchemaDescriptions(t *testing.T) {
 			}),
 		}
 		configs := map[string]ToolConfig{
-			"my-tool": {
+			testToolName: {
 				Response: map[string]string{
 					"results": "custom results description",
 				},
 			},
 		}
 
-		ApplySchemaDescriptions(&tool, "my-tool", configs)
+		ApplySchemaDescriptions(&tool, testToolName, configs)
 
 		var schema map[string]any
 		require.NoError(t, json.Unmarshal(tool.RawOutputSchema, &schema))
@@ -103,7 +105,7 @@ func TestApplySchemaDescriptions(t *testing.T) {
 		tool := mcp.Tool{RawInputSchema: json.RawMessage(append([]byte{}, original...))}
 
 		ApplySchemaDescriptions(&tool, "other-tool", map[string]ToolConfig{
-			"my-tool": {Arguments: map[string]string{"query": "custom"}},
+			testToolName: {Arguments: map[string]string{"query": "custom"}},
 		})
 
 		assert.JSONEq(t, string(original), string(tool.RawInputSchema))
@@ -115,7 +117,7 @@ func TestApplySchemaDescriptions(t *testing.T) {
 		})
 		tool := mcp.Tool{RawInputSchema: json.RawMessage(append([]byte{}, original...))}
 
-		ApplySchemaDescriptions(&tool, "my-tool", nil)
+		ApplySchemaDescriptions(&tool, testToolName, nil)
 
 		assert.JSONEq(t, string(original), string(tool.RawInputSchema))
 	})
@@ -123,10 +125,10 @@ func TestApplySchemaDescriptions(t *testing.T) {
 	t.Run("no-op when schema is nil", func(t *testing.T) {
 		tool := mcp.Tool{}
 		configs := map[string]ToolConfig{
-			"my-tool": {Arguments: map[string]string{"query": "custom"}},
+			testToolName: {Arguments: map[string]string{"query": "custom"}},
 		}
 
-		ApplySchemaDescriptions(&tool, "my-tool", configs)
+		ApplySchemaDescriptions(&tool, testToolName, configs)
 
 		assert.Nil(t, tool.RawInputSchema)
 	})
@@ -138,14 +140,14 @@ func TestApplySchemaDescriptions(t *testing.T) {
 			}),
 		}
 		configs := map[string]ToolConfig{
-			"my-tool": {
+			testToolName: {
 				Arguments: map[string]string{
 					"nonexistent": "should be ignored",
 				},
 			},
 		}
 
-		ApplySchemaDescriptions(&tool, "my-tool", configs)
+		ApplySchemaDescriptions(&tool, testToolName, configs)
 
 		var schema map[string]any
 		require.NoError(t, json.Unmarshal(tool.RawInputSchema, &schema))
