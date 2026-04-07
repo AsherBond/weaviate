@@ -22,11 +22,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ToolConfig represents the configuration for a single tool
+// ToolConfig represents the configuration for a single tool.
+// Note: only tool descriptions and argument descriptions are supported because
+// the MCP spec's tools/list response does not include output schemas.
 type ToolConfig struct {
 	Description string            `yaml:"description" json:"description"`
 	Arguments   map[string]string `yaml:"arguments" json:"arguments"`
-	Response    map[string]string `yaml:"response" json:"response"`
 }
 
 // Config represents the MCP server configuration from YAML or JSON
@@ -89,8 +90,8 @@ func GetDescription(configs map[string]ToolConfig, toolName, defaultDesc string)
 	return defaultDesc
 }
 
-// ApplySchemaDescriptions overrides argument and response property descriptions
-// on a tool's JSON schema using values from the config file.
+// ApplySchemaDescriptions overrides argument property descriptions on a tool's
+// input JSON schema using values from the config file.
 func ApplySchemaDescriptions(tool *mcp.Tool, toolName string, configs map[string]ToolConfig) {
 	if configs == nil {
 		return
@@ -101,9 +102,6 @@ func ApplySchemaDescriptions(tool *mcp.Tool, toolName string, configs map[string
 	}
 	if len(cfg.Arguments) > 0 && tool.RawInputSchema != nil {
 		tool.RawInputSchema = overridePropertyDescriptions(tool.RawInputSchema, cfg.Arguments)
-	}
-	if len(cfg.Response) > 0 && tool.RawOutputSchema != nil {
-		tool.RawOutputSchema = overridePropertyDescriptions(tool.RawOutputSchema, cfg.Response)
 	}
 }
 

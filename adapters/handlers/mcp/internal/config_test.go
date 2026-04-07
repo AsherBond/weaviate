@@ -85,20 +85,6 @@ func TestApplySchemaDescriptions(t *testing.T) {
 		assert.Equal(t, "original", propDesc(props, "collection_name"))
 	})
 
-	t.Run("overrides response descriptions", func(t *testing.T) {
-		tool := mcp.Tool{
-			RawOutputSchema: makeTestSchema(map[string]any{
-				"results": map[string]any{"type": "array", "description": "original"},
-			}),
-		}
-		ApplySchemaDescriptions(&tool, testToolName, makeTestConfigs(ToolConfig{
-			Response: map[string]string{"results": "custom results description"},
-		}))
-
-		props := schemaProps(t, tool.RawOutputSchema)
-		assert.Equal(t, "custom results description", propDesc(props, "results"))
-	})
-
 	t.Run("no-op when tool not in config", func(t *testing.T) {
 		original := makeTestSchema(map[string]any{"query": stringProp("original")})
 		tool := mcp.Tool{RawInputSchema: json.RawMessage(append([]byte{}, original...))}

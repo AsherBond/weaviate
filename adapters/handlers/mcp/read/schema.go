@@ -12,15 +12,10 @@
 package read
 
 import (
-	"context"
-	"fmt"
-
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/sirupsen/logrus"
 	"github.com/weaviate/weaviate/adapters/handlers/mcp/internal"
 	"github.com/weaviate/weaviate/entities/models"
-	"github.com/weaviate/weaviate/usecases/auth/authorization"
 )
 
 // Request types
@@ -68,38 +63,4 @@ func Tools(reader *WeaviateReader, configs map[string]internal.ToolConfig) []ser
 		{Tool: getConfigTool, Handler: mcp.NewStructuredToolHandler(reader.GetCollectionConfig)},
 		{Tool: tenantsTool, Handler: mcp.NewStructuredToolHandler(reader.GetTenants)},
 	}
-}
-
-// Handlers
-
-func (r *WeaviateReader) GetCollectionConfig(ctx context.Context, req mcp.CallToolRequest, args GetCollectionConfigArgs) (*GetCollectionConfigResp, error) {
-	log := r.logger.WithFields(logrus.Fields{
-		"tool":       "weaviate-collections-get-config",
-		"collection": args.CollectionName,
-	})
-	log.Debug("getting collection config")
-
-	// Authorize the request
-	principal, err := r.Authorize(ctx, req, authorization.READ)
-	if err != nil {
-		return nil, err
-	}
-	res, err := r.schemaReader.GetConsistentSchema(ctx, principal, true)
-	if err != nil {
-		log.Warnf("failed to get schema: %v", err)
-		return nil, fmt.Errorf("failed to get schema: %w", err)
-	}
-
-	// If collection_name is specified, filter to just that collection
-	if args.CollectionName != "" {
-		for _, class := range res.Objects.Classes {
-			if class.Class == args.CollectionName {
-				return &GetCollectionConfigResp{Collections: []*models.Class{class}}, nil
-			}
-		}
-		return nil, fmt.Errorf("collection %q not found", args.CollectionName)
-	}
-
-	// Return all collections
-	return &GetCollectionConfigResp{Collections: res.Objects.Classes}, nil
 }

@@ -4,18 +4,12 @@
       "description": "Retrieves the schema configuration for one or all collections in the Weaviate database. Use this to understand the structure, properties, and settings of your data collections before querying or inserting data.",
       "arguments": {
         "collection_name": "Optional name of the collection to retrieve configuration for. If omitted, returns configurations for all collections."
-      },
-      "response": {
-        "collections": "An array of collection configurations, each containing details about the collection's schema, properties, vectorizer settings, and other relevant metadata."
       }
     },
     "weaviate-tenants-list": {
       "description": "Lists all tenants for a specific multi-tenant collection. Use this to discover which tenants exist in a collection before performing tenant-scoped operations.",
       "arguments": {
         "collection_name": "The name of the multi-tenant collection to list tenants for."
-      },
-      "response": {
-        "tenants": "An array of tenant objects, each containing the tenant name and its current activity status."
       }
     },
     "weaviate-query-hybrid": {
@@ -24,9 +18,6 @@
         "query": "The natural language search query to find relevant objects.",
         "collection_name": "The name of the collection to search in.",
         "alpha": "Controls the balance between vector and keyword search: 0.0 = pure keyword (BM25), 1.0 = pure vector, 0.5 = equal weight (default)."
-      },
-      "response": {
-        "results": "An array of matching objects with their properties and optional metadata (scores, vectors, timestamps)."
       }
     },
     "weaviate-objects-upsert": {
@@ -34,9 +25,6 @@
       "arguments": {
         "collection_name": "The name of the collection to upsert objects into.",
         "objects": "An array of objects to upsert. Each must have 'properties' and may optionally include 'uuid' and 'vectors'."
-      },
-      "response": {
-        "results": "An array of results in the same order as the input, each containing 'id' on success or 'error' on failure."
       }
     }
   }
