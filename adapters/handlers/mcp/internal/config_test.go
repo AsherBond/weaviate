@@ -22,137 +22,119 @@ import (
 
 const testToolName = "my-tool"
 
+func makeTestSchema(props map[string]any) json.RawMessage {
+	schema := map[string]any{"type": "object", "properties": props}
+	b, _ := json.Marshal(schema)
+	return b
+}
+
+func schemaProps(t *testing.T, raw json.RawMessage) map[string]any {
+	t.Helper()
+	var schema map[string]any
+	require.NoError(t, json.Unmarshal(raw, &schema))
+	return schema["properties"].(map[string]any)
+}
+
+func propDesc(props map[string]any, name string) string {
+	return props[name].(map[string]any)["description"].(string)
+}
+
+func makeTestConfigs(cfg ToolConfig) map[string]ToolConfig {
+	return map[string]ToolConfig{testToolName: cfg}
+}
+
 func TestGetDescription(t *testing.T) {
-	configs := map[string]ToolConfig{
-		testToolName: {Description: "custom desc"},
+	configs := makeTestConfigs(ToolConfig{Description: "custom desc"})
+
+	tests := []struct {
+		name     string
+		configs  map[string]ToolConfig
+		toolName string
+		expected string
+	}{
+		{"returns custom description when present", configs, testToolName, "custom desc"},
+		{"returns default when tool not in config", configs, "other-tool", "default"},
+		{"returns default when configs is nil", nil, testToolName, "default"},
+		{"returns default when description is empty", makeTestConfigs(ToolConfig{}), testToolName, "default"},
 	}
-
-	t.Run("returns custom description when present", func(t *testing.T) {
-		assert.Equal(t, "custom desc", GetDescription(configs, testToolName, "default"))
-	})
-
-	t.Run("returns default when tool not in config", func(t *testing.T) {
-		assert.Equal(t, "default", GetDescription(configs, "other-tool", "default"))
-	})
-
-	t.Run("returns default when configs is nil", func(t *testing.T) {
-		assert.Equal(t, "default", GetDescription(nil, testToolName, "default"))
-	})
-
-	t.Run("returns default when description is empty", func(t *testing.T) {
-		configs := map[string]ToolConfig{testToolName: {}}
-		assert.Equal(t, "default", GetDescription(configs, testToolName, "default"))
-	})
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, GetDescription(tc.configs, tc.toolName, "default"))
+		})
+	}
 }
 
 func TestApplySchemaDescriptions(t *testing.T) {
-	makeSchema := func(props map[string]any) json.RawMessage {
-		schema := map[string]any{"type": "object", "properties": props}
-		b, _ := json.Marshal(schema)
-		return b
+	stringProp := func(desc string) map[string]any {
+		return map[string]any{"type": "string", "description": desc}
 	}
 
 	t.Run("overrides argument descriptions", func(t *testing.T) {
 		tool := mcp.Tool{
-			RawInputSchema: makeSchema(map[string]any{
-				"query":           map[string]any{"type": "string", "description": "original"},
-				"collection_name": map[string]any{"type": "string", "description": "original"},
+			RawInputSchema: makeTestSchema(map[string]any{
+				"query":           stringProp("original"),
+				"collection_name": stringProp("original"),
 			}),
 		}
-		configs := map[string]ToolConfig{
-			testToolName: {
-				Arguments: map[string]string{
-					"query": "custom query description",
-				},
-			},
-		}
+		ApplySchemaDescriptions(&tool, testToolName, makeTestConfigs(ToolConfig{
+			Arguments: map[string]string{"query": "custom query description"},
+		}))
 
-		ApplySchemaDescriptions(&tool, testToolName, configs)
-
-		var schema map[string]any
-		require.NoError(t, json.Unmarshal(tool.RawInputSchema, &schema))
-		props := schema["properties"].(map[string]any)
-		assert.Equal(t, "custom query description", props["query"].(map[string]any)["description"])
-		assert.Equal(t, "original", props["collection_name"].(map[string]any)["description"])
+		props := schemaProps(t, tool.RawInputSchema)
+		assert.Equal(t, "custom query description", propDesc(props, "query"))
+		assert.Equal(t, "original", propDesc(props, "collection_name"))
 	})
 
 	t.Run("overrides response descriptions", func(t *testing.T) {
 		tool := mcp.Tool{
-			RawOutputSchema: makeSchema(map[string]any{
+			RawOutputSchema: makeTestSchema(map[string]any{
 				"results": map[string]any{"type": "array", "description": "original"},
 			}),
 		}
-		configs := map[string]ToolConfig{
-			testToolName: {
-				Response: map[string]string{
-					"results": "custom results description",
-				},
-			},
-		}
+		ApplySchemaDescriptions(&tool, testToolName, makeTestConfigs(ToolConfig{
+			Response: map[string]string{"results": "custom results description"},
+		}))
 
-		ApplySchemaDescriptions(&tool, testToolName, configs)
-
-		var schema map[string]any
-		require.NoError(t, json.Unmarshal(tool.RawOutputSchema, &schema))
-		props := schema["properties"].(map[string]any)
-		assert.Equal(t, "custom results description", props["results"].(map[string]any)["description"])
+		props := schemaProps(t, tool.RawOutputSchema)
+		assert.Equal(t, "custom results description", propDesc(props, "results"))
 	})
 
 	t.Run("no-op when tool not in config", func(t *testing.T) {
-		original := makeSchema(map[string]any{
-			"query": map[string]any{"type": "string", "description": "original"},
-		})
+		original := makeTestSchema(map[string]any{"query": stringProp("original")})
 		tool := mcp.Tool{RawInputSchema: json.RawMessage(append([]byte{}, original...))}
 
-		ApplySchemaDescriptions(&tool, "other-tool", map[string]ToolConfig{
-			testToolName: {Arguments: map[string]string{"query": "custom"}},
-		})
-
+		ApplySchemaDescriptions(&tool, "other-tool", makeTestConfigs(ToolConfig{
+			Arguments: map[string]string{"query": "custom"},
+		}))
 		assert.JSONEq(t, string(original), string(tool.RawInputSchema))
 	})
 
 	t.Run("no-op when configs is nil", func(t *testing.T) {
-		original := makeSchema(map[string]any{
-			"query": map[string]any{"type": "string", "description": "original"},
-		})
+		original := makeTestSchema(map[string]any{"query": stringProp("original")})
 		tool := mcp.Tool{RawInputSchema: json.RawMessage(append([]byte{}, original...))}
 
 		ApplySchemaDescriptions(&tool, testToolName, nil)
-
 		assert.JSONEq(t, string(original), string(tool.RawInputSchema))
 	})
 
 	t.Run("no-op when schema is nil", func(t *testing.T) {
 		tool := mcp.Tool{}
-		configs := map[string]ToolConfig{
-			testToolName: {Arguments: map[string]string{"query": "custom"}},
-		}
-
-		ApplySchemaDescriptions(&tool, testToolName, configs)
-
+		ApplySchemaDescriptions(&tool, testToolName, makeTestConfigs(ToolConfig{
+			Arguments: map[string]string{"query": "custom"},
+		}))
 		assert.Nil(t, tool.RawInputSchema)
 	})
 
 	t.Run("ignores arguments not in schema", func(t *testing.T) {
 		tool := mcp.Tool{
-			RawInputSchema: makeSchema(map[string]any{
-				"query": map[string]any{"type": "string", "description": "original"},
-			}),
+			RawInputSchema: makeTestSchema(map[string]any{"query": stringProp("original")}),
 		}
-		configs := map[string]ToolConfig{
-			testToolName: {
-				Arguments: map[string]string{
-					"nonexistent": "should be ignored",
-				},
-			},
-		}
+		ApplySchemaDescriptions(&tool, testToolName, makeTestConfigs(ToolConfig{
+			Arguments: map[string]string{"nonexistent": "should be ignored"},
+		}))
 
-		ApplySchemaDescriptions(&tool, testToolName, configs)
-
-		var schema map[string]any
-		require.NoError(t, json.Unmarshal(tool.RawInputSchema, &schema))
-		props := schema["properties"].(map[string]any)
-		assert.Equal(t, "original", props["query"].(map[string]any)["description"])
+		props := schemaProps(t, tool.RawInputSchema)
+		assert.Equal(t, "original", propDesc(props, "query"))
 		_, exists := props["nonexistent"]
 		assert.False(t, exists)
 	})
@@ -165,12 +147,8 @@ func TestToToolConfigMap(t *testing.T) {
 	})
 
 	t.Run("returns tools map", func(t *testing.T) {
-		c := &Config{
-			Tools: map[string]ToolConfig{
-				"tool-a": {Description: "desc a"},
-			},
-		}
+		c := &Config{Tools: makeTestConfigs(ToolConfig{Description: "desc a"})}
 		m := c.ToToolConfigMap()
-		assert.Equal(t, "desc a", m["tool-a"].Description)
+		assert.Equal(t, "desc a", m[testToolName].Description)
 	})
 }
