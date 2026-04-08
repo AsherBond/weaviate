@@ -1597,12 +1597,64 @@ func TestGRPCSearchRequest(t *testing.T) {
 			error: false,
 		},
 		{
-			name: "filter on integer property with coercable text (float) value",
+			name: "filter on integer property with text value that is a fractional float",
 			req: &pb.SearchRequest{
 				Collection: classname,
 				Filters: &pb.Filters{
 					Operator:  pb.Filters_OPERATOR_EQUAL,
 					TestValue: &pb.Filters_ValueText{ValueText: "1.2"},
+					On:        []string{"int"},
+				},
+			},
+			out:   dto.GetParams{},
+			error: true,
+		},
+		{
+			name: "filter on integer property with text value that is a whole-number float",
+			req: &pb.SearchRequest{
+				Collection: classname,
+				Filters: &pb.Filters{
+					Operator:  pb.Filters_OPERATOR_EQUAL,
+					TestValue: &pb.Filters_ValueText{ValueText: "1.0"},
+					On:        []string{"int"},
+				},
+			},
+			out: dto.GetParams{
+				ClassName: classname, Pagination: defaultPagination,
+				Properties: defaultTestClassProps,
+				Filters: &filters.LocalFilter{
+					Root: &filters.Clause{
+						On: &filters.Path{
+							Class:    schema.ClassName(classname),
+							Property: "int",
+						},
+						Operator: filters.OperatorEqual,
+						Value:    &filters.Value{Value: 1, Type: schema.DataTypeInt},
+					},
+				},
+			},
+			error: false,
+		},
+		{
+			name: "filter on integer property with fractional float value",
+			req: &pb.SearchRequest{
+				Collection: classname,
+				Filters: &pb.Filters{
+					Operator:  pb.Filters_OPERATOR_EQUAL,
+					TestValue: &pb.Filters_ValueNumber{ValueNumber: 1.2},
+					On:        []string{"int"},
+				},
+			},
+			out:   dto.GetParams{},
+			error: true,
+		},
+		{
+			name: "filter on integer property with whole-number float value",
+			req: &pb.SearchRequest{
+				Collection: classname,
+				Filters: &pb.Filters{
+					Operator:  pb.Filters_OPERATOR_EQUAL,
+					TestValue: &pb.Filters_ValueNumber{ValueNumber: 1.0},
 					On:        []string{"int"},
 				},
 			},

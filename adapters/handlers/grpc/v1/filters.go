@@ -173,11 +173,17 @@ func ExtractFilters(filterIn *pb.Filters, authorizedGetClass classGetterWithAuth
 		if dataType == schema.DataTypeInt {
 			switch v := val.(type) {
 			case float64:
+				if float64(int(v)) != v {
+					return filters.Clause{}, fmt.Errorf("filtering for integer, but received a floating point number %v", v)
+				}
 				val = int(v)
 			case string:
 				fVal, err := strconv.ParseFloat(v, 64)
 				if err != nil {
 					return filters.Clause{}, fmt.Errorf("expected an integer value, but could not parse string '%v' as int: %w", v, err)
+				}
+				if float64(int(fVal)) != fVal {
+					return filters.Clause{}, fmt.Errorf("filtering for integer, but received a floating point number %v", fVal)
 				}
 				val = int(fVal)
 			// correct type for containsXXX in case users send floats for a []int type
