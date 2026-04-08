@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: psf/black@35ea67920b7f6ac8e09be1c47278752b1e827f76 # stable
         with:
-          version: "24.2.0"
+          version: "26.3.1"
   custom:
     name: custom checks
     runs-on: ubuntu-latest
