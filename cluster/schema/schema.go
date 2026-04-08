@@ -22,6 +22,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	command "github.com/weaviate/weaviate/cluster/proto/api"
 	"github.com/weaviate/weaviate/cluster/types"
 	"github.com/weaviate/weaviate/entities/models"
@@ -39,6 +40,27 @@ var (
 	ErrMTDisabled              = errors.New("multi-tenancy is not enabled")
 	ErrTenantTransitionalState = errors.New("tenant is in a transitional state")
 )
+
+// PartialUpdateError wraps one or more schema errors that represent a partial
+// success: some entries in the request were skipped (e.g. missing or
+// transitional-state tenants), but the remaining entries were applied and the
+// DB update should still proceed for them. The wrapped errors are returned to
+// the caller after the DB update completes.
+type PartialUpdateError struct {
+	Errs []error
+}
+
+func (e *PartialUpdateError) Error() string {
+	msgs := make([]string, 0, len(e.Errs))
+	for _, err := range e.Errs {
+		if err != nil {
+			msgs = append(msgs, err.Error())
+		}
+	}
+	return strings.Join(msgs, "; ")
+}
+
+func (e *PartialUpdateError) Unwrap() []error { return e.Errs }
 
 type ClassInfo struct {
 	Exists            bool
