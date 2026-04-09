@@ -27,8 +27,15 @@ const defaultPipeBufferSize = 16 * 1024 * 1024 // 16 MB per range pipeline
 // open.
 //
 // The buffer is a FIFO queue of byte-slice chunks. Each Write call appends
-// one chunk; each Read call dequeues from the head. Total buffered bytes
-// are bounded by maxSize.
+// one chunk; each Read call dequeues from the head.
+//
+// maxSize is a soft limit. Write only blocks once buffered >= maxSize, so a
+// single Write larger than maxSize is accepted and pushes buffered past the
+// limit by one chunk. This is intentional: rejecting or splitting such a
+// write would either deadlock (no reader can drain a chunk that was never
+// enqueued) or require the writer to hand back partial progress, which
+// io.Writer semantics do not express cleanly. In practice chunks are
+// bounded by the LSM scan emit size, which is well below maxSize.
 //
 // Thread safety: all methods are safe for concurrent use by one writer
 // goroutine and one reader goroutine. Using multiple concurrent writers or

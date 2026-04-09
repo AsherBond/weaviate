@@ -35,6 +35,14 @@ const (
 	reservationTimeout          = 30 * time.Second
 	defaultStatusFlushInterval  = 10 * time.Second
 	defaultSiblingCheckInterval = 1 * time.Minute
+
+	// maxExportParallelismMultiplier caps EXPORT_PARALLELISM at
+	// GOMAXPROCS*N. Each worker holds a 16 MB buffered pipe and an LSM
+	// cursor, so an unbounded value (e.g. a mis-set env var) could pin
+	// many GBs of memory and exhaust file descriptors. 4x is chosen to
+	// still allow oversubscription for I/O wait without leaving room
+	// for pathological misconfiguration.
+	maxExportParallelismMultiplier = 4
 )
 
 // Participant handles export requests on a single node.
@@ -1214,13 +1222,25 @@ func (p *Participant) startNodeStatusWriter(
 // getExportParallelism returns the number of concurrent scan workers for the
 // export pipeline. It reads the dynamic config value (settable via
 // EXPORT_PARALLELISM env var or runtime overrides). A value of 0 (default)
-// means GOMAXPROCS — one worker per CPU, which saturates CPU (Zstd
-// compression) and disk I/O without over-subscribing under concurrent load.
+// means GOMAXPROCS.
+//
+// Values above GOMAXPROCS*maxExportParallelismMultiplier are clamped to
+// bound memory (each worker holds a 16 MB pipe buffer plus an LSM cursor)
+// and a warning is logged.
 func (p *Participant) getExportParallelism() int {
+	maxP := runtime.GOMAXPROCS(0)
+	n := maxP
 	if p.exportParallelism != nil {
-		if n := p.exportParallelism.Get(); n > 0 {
-			return n
+		if configured := p.exportParallelism.Get(); configured > 0 {
+			n = configured
 		}
 	}
-	return runtime.GOMAXPROCS(0)
+	if limit := maxP * maxExportParallelismMultiplier; n > limit {
+		p.logger.WithField("action", "export_participant").
+			WithField("configured", n).
+			WithField("capped", limit).
+			Warnf("EXPORT_PARALLELISM=%d exceeds cap of GOMAXPROCS*%d=%d; clamping", n, maxExportParallelismMultiplier, limit)
+		n = limit
+	}
+	return n
 }
