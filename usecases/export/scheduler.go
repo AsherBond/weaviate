@@ -945,7 +945,7 @@ func (s *Scheduler) validateStorageConfig(backend string) (bucket, path string, 
 	if bucket == "" && requiresBucket(backend) {
 		return "", "", fmt.Errorf("%w: EXPORT_DEFAULT_BUCKET is required for backend %q", ErrExportValidation, backend)
 	}
-	if !s.exportConfig.DefaultPathSet.Get() {
+	if !s.exportConfig.DefaultPathSet.Load() {
 		return "", "", fmt.Errorf("%w: EXPORT_DEFAULT_PATH must be explicitly set (an empty value is allowed for no prefix)", ErrExportValidation)
 	}
 	return bucket, path, nil

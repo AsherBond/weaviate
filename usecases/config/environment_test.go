@@ -1534,25 +1534,28 @@ func TestParsePositiveDuration(t *testing.T) {
 
 func TestEnvironmentExportDefaultPath(t *testing.T) {
 	tests := []struct {
-		name      string
-		envValue  []string
+		name     string
+		envValue []string
+		// preset simulates a value coming from the startup config file
+		// (YAML/JSON), which is parsed into Config before FromEnv runs.
+		preset    *string
 		expected  string
 		expectSet bool
 	}{
 		{
-			name:      "set",
+			name:      "env set",
 			envValue:  []string{"custom/prefix"},
 			expected:  "custom/prefix",
 			expectSet: true,
 		},
 		{
-			name:      "set with whitespace trimmed",
+			name:      "env set with whitespace trimmed",
 			envValue:  []string{"  some/path  "},
 			expected:  "some/path",
 			expectSet: true,
 		},
 		{
-			name:      "set to empty string is still considered set",
+			name:      "env set to empty string is still considered set",
 			envValue:  []string{""},
 			expected:  "",
 			expectSet: true,
@@ -1563,6 +1566,27 @@ func TestEnvironmentExportDefaultPath(t *testing.T) {
 			expected:  "",
 			expectSet: false,
 		},
+		{
+			name:      "preset via startup config is considered set",
+			envValue:  []string{},
+			preset:    stringPtr("from/config/file"),
+			expected:  "from/config/file",
+			expectSet: true,
+		},
+		{
+			name:      "preset via startup config with empty string is considered set",
+			envValue:  []string{},
+			preset:    stringPtr(""),
+			expected:  "",
+			expectSet: true,
+		},
+		{
+			name:      "env overrides preset from startup config",
+			envValue:  []string{"from/env"},
+			preset:    stringPtr("from/config/file"),
+			expected:  "from/env",
+			expectSet: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1570,13 +1594,18 @@ func TestEnvironmentExportDefaultPath(t *testing.T) {
 				t.Setenv("EXPORT_DEFAULT_PATH", tt.envValue[0])
 			}
 			conf := Config{}
+			if tt.preset != nil {
+				conf.Export.DefaultPath = configRuntime.NewDynamicValue(*tt.preset)
+			}
 			err := FromEnv(&conf)
 			require.Nil(t, err)
 			require.Equal(t, tt.expected, conf.Export.DefaultPath.Get())
-			require.Equal(t, tt.expectSet, conf.Export.DefaultPathSet.Get())
+			require.Equal(t, tt.expectSet, conf.Export.DefaultPathSet.Load())
 		})
 	}
 }
+
+func stringPtr(s string) *string { return &s }
 
 func TestEnvironmentExportDefaultBucket(t *testing.T) {
 	tests := []struct {

@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -203,7 +204,7 @@ func TestScheduler_StorageConfigValidation(t *testing.T) {
 	t.Run("fails on all endpoints when EXPORT_DEFAULT_PATH was not set", func(t *testing.T) {
 		s := newScheduler()
 		// Simulate EXPORT_DEFAULT_PATH never having been set.
-		s.exportConfig.DefaultPathSet = configRuntime.NewDynamicValue(false)
+		s.exportConfig.DefaultPathSet = new(atomic.Bool)
 		for name, err := range callAll(s) {
 			require.Errorf(t, err, "%s should error", name)
 			assert.ErrorIsf(t, err, ErrExportValidation, "%s should wrap ErrExportValidation", name)
@@ -224,7 +225,8 @@ func TestScheduler_StorageConfigValidation(t *testing.T) {
 	t.Run("passes path validation when set to empty string", func(t *testing.T) {
 		s := newScheduler()
 		s.exportConfig.DefaultPath = configRuntime.NewDynamicValue("")
-		s.exportConfig.DefaultPathSet = configRuntime.NewDynamicValue(true)
+		s.exportConfig.DefaultPathSet = new(atomic.Bool)
+		s.exportConfig.DefaultPathSet.Store(true)
 		// The path-set check must not fire; downstream errors are fine because
 		// this scheduler is stubbed and may fail later for unrelated reasons.
 		for name, err := range callAll(s) {

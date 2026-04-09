@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -1959,15 +1960,18 @@ func (c *Config) parseExportConfig() {
 		c.Export.DefaultBucket = configRuntime.NewDynamicValue("")
 	}
 
+	c.Export.DefaultPathSet = new(atomic.Bool)
 	if v, ok := os.LookupEnv("EXPORT_DEFAULT_PATH"); ok {
 		c.Export.DefaultPath = configRuntime.NewDynamicValue(strings.TrimSpace(v))
-		c.Export.DefaultPathSet = configRuntime.NewDynamicValue(true)
+		c.Export.DefaultPathSet.Store(true)
+	} else if c.Export.DefaultPath != nil {
+		// Came from the startup config file — an explicit decision by the
+		// operator, even if the value is empty. DefaultPathSet is not
+		// user-settable (see config.Export), so we derive it here. It may
+		// also be flipped to true at runtime by the "ExportDefaultPath" hook
+		// registered against the runtime config manager.
+		c.Export.DefaultPathSet.Store(true)
 	} else {
-		if c.Export.DefaultPath == nil {
-			c.Export.DefaultPath = configRuntime.NewDynamicValue("")
-		}
-		if c.Export.DefaultPathSet == nil {
-			c.Export.DefaultPathSet = configRuntime.NewDynamicValue(false)
-		}
+		c.Export.DefaultPath = configRuntime.NewDynamicValue("")
 	}
 }
