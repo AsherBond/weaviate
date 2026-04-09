@@ -397,8 +397,9 @@ func (b *writeBlockingBackend) waitForParquetWrite(t *testing.T) {
 // suitable for unit tests that need a non-nil exportConfig.
 func testExportConfig() config.Export {
 	return config.Export{
-		Enabled:       configRuntime.NewDynamicValue(true),
-		DefaultBucket: configRuntime.NewDynamicValue("test-bucket"),
-		DefaultPath:   configRuntime.NewDynamicValue(""),
+		Enabled:        configRuntime.NewDynamicValue(true),
+		DefaultBucket:  configRuntime.NewDynamicValue("test-bucket"),
+		DefaultPath:    configRuntime.NewDynamicValue(""),
+		DefaultPathSet: configRuntime.NewDynamicValue(true),
 	}
 }

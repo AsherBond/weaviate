@@ -1534,24 +1534,34 @@ func TestParsePositiveDuration(t *testing.T) {
 
 func TestEnvironmentExportDefaultPath(t *testing.T) {
 	tests := []struct {
-		name     string
-		envValue []string
-		expected string
+		name      string
+		envValue  []string
+		expected  string
+		expectSet bool
 	}{
 		{
-			name:     "set",
-			envValue: []string{"custom/prefix"},
-			expected: "custom/prefix",
+			name:      "set",
+			envValue:  []string{"custom/prefix"},
+			expected:  "custom/prefix",
+			expectSet: true,
 		},
 		{
-			name:     "set with whitespace trimmed",
-			envValue: []string{"  some/path  "},
-			expected: "some/path",
+			name:      "set with whitespace trimmed",
+			envValue:  []string{"  some/path  "},
+			expected:  "some/path",
+			expectSet: true,
 		},
 		{
-			name:     "not set defaults to empty",
-			envValue: []string{},
-			expected: "",
+			name:      "set to empty string is still considered set",
+			envValue:  []string{""},
+			expected:  "",
+			expectSet: true,
+		},
+		{
+			name:      "not set defaults to empty and unset",
+			envValue:  []string{},
+			expected:  "",
+			expectSet: false,
 		},
 	}
 	for _, tt := range tests {
@@ -1563,6 +1573,7 @@ func TestEnvironmentExportDefaultPath(t *testing.T) {
 			err := FromEnv(&conf)
 			require.Nil(t, err)
 			require.Equal(t, tt.expected, conf.Export.DefaultPath.Get())
+			require.Equal(t, tt.expectSet, conf.Export.DefaultPathSet.Get())
 		})
 	}
 }

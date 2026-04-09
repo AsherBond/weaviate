@@ -609,6 +609,14 @@ type Export struct {
 	// DefaultPath is the default path prefix within the bucket or filesystem for exports.
 	// Env: EXPORT_DEFAULT_PATH, runtime config: export_default_path.
 	DefaultPath *runtime.DynamicValue[string] `json:"default_path" yaml:"default_path"`
+
+	// DefaultPathSet tracks whether DefaultPath was explicitly configured by the
+	// operator (vs. implicitly defaulted to the empty string). It is used to
+	// require an explicit path decision at export time — where an empty string
+	// is a valid, conscious choice (no prefix), but a missing value is not.
+	// Env: set to true when EXPORT_DEFAULT_PATH is present (even if empty).
+	// Runtime config: export_default_path_set.
+	DefaultPathSet *runtime.DynamicValue[bool] `json:"default_path_set" yaml:"default_path_set"`
 }
 
 const (

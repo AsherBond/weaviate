@@ -26,6 +26,7 @@ import (
 	"github.com/weaviate/weaviate/entities/export"
 	"github.com/weaviate/weaviate/entities/modulecapabilities"
 	"github.com/weaviate/weaviate/usecases/auth/authorization/mocks"
+	configRuntime "github.com/weaviate/weaviate/usecases/config/runtime"
 )
 
 // errorBackend embeds fakeBackend but overrides GetObject to always return
@@ -169,6 +170,70 @@ func TestScheduler_ExportIDValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScheduler_StorageConfigValidation(t *testing.T) {
+	logger, _ := test.NewNullLogger()
+	newScheduler := func() *Scheduler {
+		return &Scheduler{
+			logger:       logger,
+			authorizer:   mocks.NewMockAuthorizer(),
+			exportConfig: testExportConfig(),
+			backends:     &fakeBackendProvider{backend: &fakeBackend{}},
+			client:       &fakeExportClient{},
+			nodeResolver: &fakeNodeResolver{nodes: map[string]string{}},
+			selector:     &fakeSelector{classList: []string{"Article"}},
+			metrics:      testMetrics(),
+		}
+	}
+
+	// callAll invokes Export, Status and Cancel and returns all three errors so
+	// tests can assert the same validation behavior across the three endpoints.
+	callAll := func(s *Scheduler) map[string]error {
+		_, exportErr := s.Export(context.Background(), nil, "my-export", "s3", nil, nil)
+		_, statusErr := s.Status(context.Background(), nil, "s3", "my-export")
+		cancelErr := s.Cancel(context.Background(), nil, "s3", "my-export")
+		return map[string]error{
+			"Export": exportErr,
+			"Status": statusErr,
+			"Cancel": cancelErr,
+		}
+	}
+
+	t.Run("fails on all endpoints when EXPORT_DEFAULT_PATH was not set", func(t *testing.T) {
+		s := newScheduler()
+		// Simulate EXPORT_DEFAULT_PATH never having been set.
+		s.exportConfig.DefaultPathSet = configRuntime.NewDynamicValue(false)
+		for name, err := range callAll(s) {
+			require.Errorf(t, err, "%s should error", name)
+			assert.ErrorIsf(t, err, ErrExportValidation, "%s should wrap ErrExportValidation", name)
+			assert.Containsf(t, err.Error(), "EXPORT_DEFAULT_PATH", "%s error should mention EXPORT_DEFAULT_PATH", name)
+		}
+	})
+
+	t.Run("fails on all endpoints when bucket is missing for bucket-backed backend", func(t *testing.T) {
+		s := newScheduler()
+		s.exportConfig.DefaultBucket = configRuntime.NewDynamicValue("")
+		for name, err := range callAll(s) {
+			require.Errorf(t, err, "%s should error", name)
+			assert.ErrorIsf(t, err, ErrExportValidation, "%s should wrap ErrExportValidation", name)
+			assert.Containsf(t, err.Error(), "EXPORT_DEFAULT_BUCKET", "%s error should mention EXPORT_DEFAULT_BUCKET", name)
+		}
+	})
+
+	t.Run("passes path validation when set to empty string", func(t *testing.T) {
+		s := newScheduler()
+		s.exportConfig.DefaultPath = configRuntime.NewDynamicValue("")
+		s.exportConfig.DefaultPathSet = configRuntime.NewDynamicValue(true)
+		// The path-set check must not fire; downstream errors are fine because
+		// this scheduler is stubbed and may fail later for unrelated reasons.
+		for name, err := range callAll(s) {
+			if err != nil {
+				assert.NotContainsf(t, err.Error(), "EXPORT_DEFAULT_PATH", "%s should not fail on path validation", name)
+				assert.NotContainsf(t, err.Error(), "EXPORT_DEFAULT_BUCKET", "%s should not fail on bucket validation", name)
+			}
+		}
+	})
 }
 
 func TestScheduler_ErrorPaths(t *testing.T) {

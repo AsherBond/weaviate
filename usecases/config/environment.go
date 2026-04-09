@@ -1961,7 +1961,13 @@ func (c *Config) parseExportConfig() {
 
 	if v, ok := os.LookupEnv("EXPORT_DEFAULT_PATH"); ok {
 		c.Export.DefaultPath = configRuntime.NewDynamicValue(strings.TrimSpace(v))
-	} else if c.Export.DefaultPath == nil {
-		c.Export.DefaultPath = configRuntime.NewDynamicValue("")
+		c.Export.DefaultPathSet = configRuntime.NewDynamicValue(true)
+	} else {
+		if c.Export.DefaultPath == nil {
+			c.Export.DefaultPath = configRuntime.NewDynamicValue("")
+		}
+		if c.Export.DefaultPathSet == nil {
+			c.Export.DefaultPathSet = configRuntime.NewDynamicValue(false)
+		}
 	}
 }
