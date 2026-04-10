@@ -640,7 +640,7 @@ func (s *BackupTestSuite) CreateBackup(t *testing.T, backupID, baseBackupID stri
 
 	cfg := helper.DefaultBackupConfig()
 
-	ch := make(chan createBackupResult)
+	ch := make(chan createBackupResult, 1)
 	logger, _ := test.NewNullLogger()
 	enterrors.GoWrapper(func() {
 		defer close(ch)
