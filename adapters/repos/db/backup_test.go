@@ -119,7 +119,7 @@ func TestListInactiveLSMFiles(t *testing.T) {
 		{
 			name: "migrations directory is walked recursively",
 			setup: func(t *testing.T, lsmDir string) {
-				migDir := filepath.Join(lsmDir, MigrationsExt)
+				migDir := filepath.Join(lsmDir, migrationsDir)
 				require.NoError(t, os.MkdirAll(filepath.Join(migDir, "sub"), 0o755))
 				require.NoError(t, os.WriteFile(filepath.Join(migDir, "m1.json"), []byte("m"), 0o644))
 				require.NoError(t, os.WriteFile(filepath.Join(migDir, "sub", "m2.json"), []byte("m"), 0o644))
@@ -129,8 +129,8 @@ func TestListInactiveLSMFiles(t *testing.T) {
 				require.NoError(t, os.WriteFile(filepath.Join(bucketDir, "segment.db"), []byte("d"), 0o644))
 			},
 			expected: []string{
-				filepath.Join(MigrationsExt, "m1.json"),
-				filepath.Join(MigrationsExt, "sub", "m2.json"),
+				filepath.Join(migrationsDir, "m1.json"),
+				filepath.Join(migrationsDir, "sub", "m2.json"),
 				"objects/segment.db",
 			},
 		},
@@ -478,18 +478,18 @@ func TestBackupFrozenShardOmitted(t *testing.T) {
 		getSchema: &fakeSchemaGetter{},
 	}
 
-	t.Run("hardlink path returns errFrozenShard for missing shard dir", func(t *testing.T) {
+	t.Run("hardlink path returns errShardNoLocalData for missing shard dir", func(t *testing.T) {
 		var sd backup.ShardDescriptor
 		err := idx.backupInactiveShardWithHardlinks(shardName, &sd, nil, stagingRoot)
 		require.Error(t, err)
-		require.True(t, errors.Is(err, errFrozenShard), "expected errFrozenShard, got %v", err)
+		require.True(t, errors.Is(err, errShardNoLocalData), "expected errShardNoLocalData, got %v", err)
 	})
 
-	t.Run("non-hardlink path returns errFrozenShard for missing shard dir", func(t *testing.T) {
+	t.Run("non-hardlink path returns errShardNoLocalData for missing shard dir", func(t *testing.T) {
 		var sd backup.ShardDescriptor
 		err := idx.backupInactiveShardWithoutHardlinks(shardName, &sd, nil)
 		require.Error(t, err)
-		require.True(t, errors.Is(err, errFrozenShard), "expected errFrozenShard, got %v", err)
+		require.True(t, errors.Is(err, errShardNoLocalData), "expected errShardNoLocalData, got %v", err)
 	})
 }
 

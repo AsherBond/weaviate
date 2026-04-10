@@ -41,18 +41,18 @@ type BackupState struct {
 	InProgress bool
 }
 
-var errFrozenShard = errors.New("shard is frozen")
+var errShardNoLocalData = errors.New("shard has no local data")
 
 const (
-	LSMDir        = "lsm"
-	MigrationsExt = ".migrations"
-	DBExt         = ".db"
-	BloomExt      = ".bloom"
-	TmpExt        = ".tmp"
-	CNAExt        = ".cna"
-	MetadataExt   = ".metadata"
-	CondensedExt  = ".condensed"
-	SnapshotExt   = ".snapshot"
+	lsmDir        = "lsm"
+	migrationsDir = ".migrations"
+	dbExt         = ".db"
+	bloomExt      = ".bloom"
+	tmpExt        = ".tmp"
+	cnaExt        = ".cna"
+	metadataExt   = ".metadata"
+	condensedExt  = ".condensed"
+	snapshotExt   = ".snapshot"
 )
 
 // Backupable returns whether all given class can be backed up.
@@ -277,7 +277,8 @@ func (i *Index) descriptorWithHardlinks(ctx context.Context, backupID string, de
 		eg.Go(func() error {
 			sd, err := i.backupShardWithHardlinks(ctx, name, classBaseDescrs, stagingRoot)
 			if err != nil {
-				if errors.Is(err, errFrozenShard) {
+				if errors.Is(err, errShardNoLocalData) {
+					i.logger.WithField("shard", name).Debug("skipping shard with no local data")
 					return nil
 				}
 				return err
@@ -345,6 +346,10 @@ func (i *Index) backupShardWithHardlinks(ctx context.Context, name string, class
 			return &sd, nil
 		}
 		// Shard is already loaded => release immediately and use the active path.
+		// We release early (rather than defer) because CreateBackupSnapshot may
+		// take time and holding the loading mutex would unnecessarily block other
+		// shards from loading. The loaded check is safe because blockLoading()
+		// holds the LazyLoadShard mutex.
 		releaseBlock()
 	}
 
@@ -370,7 +375,7 @@ func (i *Index) backupInactiveShardWithHardlinks(name string, sd *backup.ShardDe
 		if os.IsNotExist(err) {
 			// FROZEN/OFFLOADED — no local data. Status is preserved in the
 			// sharding state; omit from desc.Shards.
-			return errFrozenShard
+			return errShardNoLocalData
 		}
 		return fmt.Errorf("stat shard dir: %w", err)
 	}
@@ -398,7 +403,7 @@ func (i *Index) backupInactiveShardWithHardlinks(name string, sd *backup.ShardDe
 
 	}
 
-	if err := sd.FillFileInfo(files, shardBaseDescr, stagingRoot); err != nil {
+	if err := sd.FillFileInfo(files, shardBaseDescr, i.Config.RootPath); err != nil {
 		return fmt.Errorf("gather inactive shard %s file info: %w", name, err)
 	}
 
@@ -415,20 +420,20 @@ func isImmutableFile(relPath string) bool {
 
 	// LSM segment data files — written once during flush/compaction, never modified.
 	// Excludes meta*.db (flat index BoltDB, mmap writes) and index.db (dynamic index BoltDB).
-	if ext == DBExt && !strings.HasPrefix(base, "meta") && base != "index.db" {
+	if ext == dbExt && !strings.HasPrefix(base, "meta") && base != "index.db" {
 		return true
 	}
 	// LSM segment companion files — written once during segment init, never modified.
 	// .bloom = bloom filter, .cna = count net additions, .metadata = combined metadata.
-	if ext == BloomExt || ext == CNAExt || ext == MetadataExt {
+	if ext == bloomExt || ext == cnaExt || ext == metadataExt {
 		return true
 	}
 	// Condensed HNSW commitlogs — produced by compaction, never reopened for writes.
-	if ext == CondensedExt {
+	if ext == condensedExt {
 		return true
 	}
 	// HNSW snapshots — point-in-time captures, never modified after creation.
-	if ext == SnapshotExt {
+	if ext == snapshotExt {
 		return true
 	}
 	return false
@@ -437,7 +442,7 @@ func isImmutableFile(relPath string) bool {
 // copyFile creates an independent copy of src at dst, fsyncing the destination.
 // Used instead of os.Link for mutable files where a shared inode would allow
 // post-snapshot writes to corrupt the backup copy.
-func copyFile(src, dst string) error {
+func copyFile(src, dst string) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("open source: %w", err)
@@ -448,7 +453,11 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("create destination: %w", err)
 	}
-	defer out.Close()
+	defer func() {
+		if closeErr := out.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("close destination: %w", closeErr)
+		}
+	}()
 
 	if _, err := io.Copy(out, in); err != nil {
 		return fmt.Errorf("copy data: %w", err)
@@ -476,7 +485,8 @@ func (i *Index) descriptorWithoutHardlinks(ctx context.Context, backupID string,
 	for _, name := range shardNames {
 		sd, err := i.backupShardWithoutHardlinks(ctx, name, classBaseDescrs)
 		if err != nil {
-			if errors.Is(err, errFrozenShard) {
+			if errors.Is(err, errShardNoLocalData) {
+				i.logger.WithField("shard", name).Debug("skipping shard with no local data")
 				continue
 			}
 			return err
@@ -574,7 +584,7 @@ func (i *Index) backupInactiveShardWithoutHardlinks(name string, sd *backup.Shar
 		if os.IsNotExist(err) {
 			// FROZEN/OFFLOADED — no local data. Status is preserved in the
 			// sharding state; omit from desc.Shards.
-			return errFrozenShard
+			return errShardNoLocalData
 		}
 		return fmt.Errorf("stat shard dir: %w", err)
 	}
@@ -626,36 +636,33 @@ func (i *Index) marshalBackupMetadata(desc *backup.ClassDescriptor, shardingStat
 }
 
 // snapshotNameMaxLabel is the maximum length of the human-readable label
-// in a snapshot directory name. The full name is:
-//
-//	SnapshotDirPrefix + label + "-" + hash (12 hex chars)
-//
-// With SnapshotDirPrefix=".snapshot-" (10 chars), a 20-char label, and
-// a 13-char suffix ("-" + 12 hex), the total is 43 chars — well within
-// the 255-byte filesystem path component limit.
+// in a snapshot directory name. The label is best-effort — it exists only
+// for operator convenience when inspecting the filesystem. Uniqueness is
+// guaranteed by the hash suffix, not the label.
 const snapshotNameMaxLabel = 20
 
-// SafeSnapshotName builds a snapshot directory name that is guaranteed to
-// fit within filesystem path component limits (255 bytes). It truncates
-// the human-readable label and appends a hash of the full input for
-// uniqueness. The parts are joined with "-" before hashing.
+// safeSnapshotName builds a directory name that is guaranteed to fit within
+// filesystem path component limits (255 bytes). The prefix is prepended
+// verbatim; the remaining parts are joined with "-" to form a human-readable
+// label that is truncated to snapshotNameMaxLabel. A SHA-256 hash of the
+// full input (prefix + body) is appended for uniqueness.
 //
-// Example: safeSnapshotName("backup", "backup1", "MyClass")
-// → "backup-backup1-MyClass-a1b2c3d4e5f6"
-func safeSnapshotName(parts ...string) string {
-	full := strings.Join(parts, "-")
-	h := sha256.Sum256([]byte(full))
+// Example: safeSnapshotName(".backup-staging-", "backup1", "myclass")
+// → ".backup-staging-backup1-myclass-a1b2c3d4e5f6"
+func safeSnapshotName(prefix string, parts ...string) string {
+	body := strings.Join(parts, "-")
+	h := sha256.Sum256([]byte(prefix + body))
 	hashSuffix := hex.EncodeToString(h[:6]) // 12 hex chars
 
-	label := full
+	label := body
 	if len(label) > snapshotNameMaxLabel {
 		label = label[:snapshotNameMaxLabel]
 	}
-	return label + "-" + hashSuffix
+	return prefix + label + "-" + hashSuffix
 }
 
 func backupStagingDir(rootPath, backupID string, className schema.ClassName) string {
-	name := safeSnapshotName(backup.BackupStagingPrefix, backupID, "-", indexID(className))
+	name := safeSnapshotName(backup.BackupStagingPrefix, backupID, indexID(className))
 	return filepath.Join(rootPath, name)
 }
 
@@ -742,11 +749,12 @@ func (i *Index) readSchema() (shards []string, state []byte, err error) {
 	nodeName := i.getSchema.NodeName()
 	err = i.schemaReader.Read(i.Config.ClassName.String(), true, func(_ *models.Class, s *sharding.State) error {
 		if s == nil {
-			return nil
+			return fmt.Errorf("unable to retrieve sharding state for class %s", i.Config.ClassName.String())
 		}
-		state, err = s.JSON()
-		if err != nil {
-			return fmt.Errorf("marshal sharding state: %w", err)
+		var jsonErr error
+		state, jsonErr = s.JSON()
+		if jsonErr != nil {
+			return fmt.Errorf("marshal sharding state: %w", jsonErr)
 		}
 		for shardName, phys := range s.Physical {
 			if phys.IsLocalShard(nodeName) {
@@ -771,6 +779,9 @@ func (i *Index) listInactiveShardFiles(shardName string, sd *backup.ShardDescrip
 	sd.Node = i.getSchema.NodeName()
 
 	// Read metadata files (same data as readBackupMetadata in shard_backup.go).
+	// These files are guaranteed to exist: INACTIVE shards were always ACTIVE
+	// first (required to ingest data), and Shard.Shutdown writes indexcount,
+	// proplengths, and version during the flush/close sequence.
 	counterPath := filepath.Join(shardDir, "indexcount")
 	data, err := os.ReadFile(counterPath)
 	if err != nil {
@@ -806,15 +817,20 @@ func (i *Index) listInactiveShardFiles(shardName string, sd *backup.ShardDescrip
 	// List LSM store files. Unlike the ACTIVE path (Bucket.listFiles), we include
 	// .wal files because Bucket.Shutdown may use flushWAL() instead of flush()
 	// for small memtables (shouldReuseWAL), making the WAL the only data copy.
-	lsmDir := filepath.Join(shardDir, LSMDir)
-	lsmFiles, err := listInactiveLSMFiles(lsmDir, rootPath)
+	lsmPath := filepath.Join(shardDir, lsmDir)
+	lsmFiles, err := listInactiveLSMFiles(lsmPath, rootPath)
 	if err != nil {
 		return nil, fmt.Errorf("list lsm files: %w", err)
 	}
 	files = append(files, lsmFiles...)
 
 	// List vector index files (all non-lsm subdirectories of the shard).
-	// Note: this reads shardDir, not lsmDir — the two ReadDir calls in this
+	// Expected directories: <target>.hnsw.commitlog.d/, <target>.hnsw.snapshot.d/,
+	// <target>.queue.d/, <target>/ (flat/dynamic index), hashtree_<target>/.
+	// An indiscriminate walk is safe here because INACTIVE shards are fully
+	// quiesced — Shutdown has flushed and closed all stores, so there are no
+	// active commit logs or transient files to exclude.
+	// Note: this reads shardDir, not lsmPath — the two ReadDir calls in this
 	// function and listInactiveLSMFiles operate on different directories with
 	// different traversal semantics.
 	entries, err := os.ReadDir(shardDir)
@@ -822,7 +838,7 @@ func (i *Index) listInactiveShardFiles(shardName string, sd *backup.ShardDescrip
 		return nil, fmt.Errorf("read shard dir: %w", err)
 	}
 	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name() == LSMDir {
+		if !entry.IsDir() || entry.Name() == lsmDir {
 			continue
 		}
 		vectorDir := filepath.Join(shardDir, entry.Name())
@@ -833,7 +849,7 @@ func (i *Index) listInactiveShardFiles(shardName string, sd *backup.ShardDescrip
 			if d.IsDir() {
 				return nil
 			}
-			if filepath.Ext(d.Name()) == TmpExt {
+			if filepath.Ext(d.Name()) == tmpExt {
 				return nil
 			}
 			relPath, relErr := filepath.Rel(rootPath, fpath)
@@ -868,7 +884,7 @@ func listInactiveLSMFiles(lsmDir, rootPath string) ([]string, error) {
 	for _, entry := range entries {
 		entryPath := filepath.Join(lsmDir, entry.Name())
 
-		if entry.Name() == MigrationsExt {
+		if entry.Name() == migrationsDir {
 			// Walk migrations recursively, same as Store.listMigrationFiles.
 			if err := filepath.WalkDir(entryPath, func(fpath string, d os.DirEntry, err error) error {
 				if err != nil || d == nil || d.IsDir() {
@@ -905,7 +921,7 @@ func listInactiveLSMFiles(lsmDir, rootPath string) ([]string, error) {
 			if be.IsDir() {
 				continue
 			}
-			if filepath.Ext(be.Name()) == TmpExt {
+			if filepath.Ext(be.Name()) == tmpExt {
 				continue
 			}
 			files = append(files, filepath.Join(basePath, be.Name()))
