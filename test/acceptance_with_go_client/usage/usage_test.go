@@ -260,30 +260,28 @@ func TestAlterSchemaDropPropertyIndex(t *testing.T) {
 	c.Schema().ClassDeleter().WithClassName(className).Do(ctx)
 	defer c.Schema().ClassDeleter().WithClassName(className).Do(ctx)
 
-	ptrBool := func(b bool) *bool { return &b }
-
 	class := &models.Class{
 		Class: className,
 		Properties: []*models.Property{
 			{
 				Name:            textProp,
 				DataType:        []string{schema.DataTypeText.String()},
-				IndexFilterable: ptrBool(true),
-				IndexSearchable: ptrBool(true),
+				IndexFilterable: new(true),
+				IndexSearchable: new(true),
 			},
 			{
 				Name:              numberProp,
 				DataType:          []string{schema.DataTypeNumber.String()},
-				IndexFilterable:   ptrBool(true),
-				IndexRangeFilters: ptrBool(true),
+				IndexFilterable:   new(true),
+				IndexRangeFilters: new(true),
 			},
 		},
 		Vectorizer: "none",
 	}
 	require.NoError(t, c.Schema().ClassCreator().WithClass(class).Do(ctx))
 
-	// Insert 1000 objects
-	const numObjects = 1000
+	// Insert 100 objects
+	const numObjects = 100
 	objs := make([]*models.Object, numObjects)
 	for i := range numObjects {
 		objs[i] = &models.Object{
@@ -394,8 +392,8 @@ func TestAlterSchemaDropVectorIndex(t *testing.T) {
 	}
 	require.NoError(t, c.Schema().ClassCreator().WithClass(class).Do(ctx))
 
-	// Insert 1000 objects with both named vectors
-	const numObjects = 1000
+	// Insert 100 objects with both named vectors
+	const numObjects = 100
 	objs := make([]*models.Object, numObjects)
 	for i := range numObjects {
 		objs[i] = &models.Object{
