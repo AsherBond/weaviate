@@ -53,18 +53,27 @@ func (j *scanJob) execute() {
 	// no upload goroutine, no backend object, no misleading "closed pipe"
 	// log noise on shards that have no data (e.g. an empty MT tenant).
 	var pipeline *rangePipeline
-	// getWriter is called exactly once by scanRangeToWriter — on the first
-	// row. If the range is empty it is never called at all.
+	// getWriter is guarded by sync.Once so that at most one pipeline is
+	// ever created per range, regardless of how scanRangeToWriter evolves.
+	// If the range is empty, getWriter is never called at all.
+	var once sync.Once
+	var initErr error
 	getWriter := func() (*ParquetWriter, error) {
-		p, err := startRangeWriter(j.ctx, j.writerCfg, j.rangeIndex)
-		if err != nil {
-			return nil, fmt.Errorf("start range writer %d: %w", j.rangeIndex, err)
+		once.Do(func() {
+			p, err := startRangeWriter(j.ctx, j.writerCfg, j.rangeIndex)
+			if err != nil {
+				initErr = fmt.Errorf("start range writer %d: %w", j.rangeIndex, err)
+				return
+			}
+			pipeline = p
+		})
+		if initErr != nil {
+			return nil, initErr
 		}
-		pipeline = p
 		return pipeline.writer, nil
 	}
 
-	_, scanErr := scanRangeToWriter(j.ctx, j.bucket, j.keyRange.start, j.keyRange.end, getWriter)
+	scanErr := scanRangeToWriter(j.ctx, j.bucket, j.keyRange.start, j.keyRange.end, getWriter)
 
 	if pipeline == nil {
 		// Empty range — no upload was started. Propagate any scan
@@ -151,7 +160,7 @@ func scanRangeToWriter(
 	bucket *lsmkv.Bucket,
 	startKey, endKey []byte,
 	getWriter func() (*ParquetWriter, error),
-) (int, error) {
+) error {
 	cursor := bucket.Cursor()
 	defer cursor.Close()
 
@@ -162,7 +171,6 @@ func scanRangeToWriter(
 		key, val = cursor.Seek(startKey)
 	}
 
-	var n int
 	var writer *ParquetWriter
 	for key != nil {
 		if endKey != nil && bytes.Compare(key, endKey) >= 0 {
@@ -171,18 +179,18 @@ func scanRangeToWriter(
 
 		select {
 		case <-ctx.Done():
-			return n, ctx.Err()
+			return ctx.Err()
 		default:
 		}
 
 		fields, err := storobj.ExportFieldsFromBinary(val)
 		if err != nil {
-			return n, fmt.Errorf("extract export fields: %w", err)
+			return fmt.Errorf("extract export fields: %w", err)
 		}
 
 		if writer == nil {
 			if writer, err = getWriter(); err != nil {
-				return n, err
+				return err
 			}
 		}
 
@@ -197,14 +205,13 @@ func scanRangeToWriter(
 		}
 
 		if err := writer.WriteRow(row); err != nil {
-			return n, fmt.Errorf("write row to parquet: %w", err)
+			return fmt.Errorf("write row to parquet: %w", err)
 		}
 
-		n++
 		key, val = cursor.Next()
 	}
 
-	return n, nil
+	return nil
 }
 
 // rangeWriterConfig holds shared configuration for all range writers of a shard.

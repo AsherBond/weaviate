@@ -254,7 +254,7 @@ func scanToRows(t *testing.T, ctx context.Context, bucket *lsmkv.Bucket, start, 
 	var buf bytes.Buffer
 	var writer *ParquetWriter
 
-	_, scanErr := scanRangeToWriter(ctx, bucket, start, end, func() (*ParquetWriter, error) {
+	scanErr := scanRangeToWriter(ctx, bucket, start, end, func() (*ParquetWriter, error) {
 		var err error
 		writer, err = NewParquetWriter(&buf)
 		return writer, err
@@ -388,7 +388,7 @@ func TestScanRangeToWriter(t *testing.T) {
 	t.Run("getWriter is not called for empty range", func(t *testing.T) {
 		t.Parallel()
 		var calls int
-		_, err := scanRangeToWriter(context.Background(), bucket,
+		err := scanRangeToWriter(context.Background(), bucket,
 			makeKey(numObjects+10), makeKey(numObjects+20),
 			func() (*ParquetWriter, error) {
 				calls++
@@ -406,13 +406,12 @@ func TestScanRangeToWriter(t *testing.T) {
 		require.NotNil(t, emptyBucket)
 
 		var calls int
-		n, err := scanRangeToWriter(context.Background(), emptyBucket, nil, nil,
+		err := scanRangeToWriter(context.Background(), emptyBucket, nil, nil,
 			func() (*ParquetWriter, error) {
 				calls++
 				return nil, fmt.Errorf("getWriter must not be called for empty bucket")
 			})
 		require.NoError(t, err)
-		assert.Equal(t, 0, n)
 		assert.Equal(t, 0, calls)
 	})
 
@@ -420,12 +419,11 @@ func TestScanRangeToWriter(t *testing.T) {
 	t.Run("getWriter failure propagates as scan error", func(t *testing.T) {
 		t.Parallel()
 		wantErr := fmt.Errorf("create writer failed")
-		n, err := scanRangeToWriter(context.Background(), bucket, nil, nil,
+		err := scanRangeToWriter(context.Background(), bucket, nil, nil,
 			func() (*ParquetWriter, error) {
 				return nil, wantErr
 			})
 		require.ErrorIs(t, err, wantErr)
-		assert.Equal(t, 0, n)
 	})
 
 	// Regression: when ExportFieldsFromBinary fails before getWriter is
@@ -443,14 +441,13 @@ func TestScanRangeToWriter(t *testing.T) {
 		require.NoError(t, corruptBucket.FlushAndSwitch())
 
 		var calls int
-		n, err := scanRangeToWriter(context.Background(), corruptBucket, nil, nil,
+		err := scanRangeToWriter(context.Background(), corruptBucket, nil, nil,
 			func() (*ParquetWriter, error) {
 				calls++
 				return nil, fmt.Errorf("should not be called")
 			})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "extract export fields")
-		assert.Equal(t, 0, n)
 		assert.Equal(t, 0, calls, "getWriter must not be called when first object is corrupt")
 	})
 
@@ -964,7 +961,7 @@ func TestParquetWriter_OnFlush(t *testing.T) {
 			callbacks = append(callbacks, n)
 		}
 
-		_, err = scanRangeToWriter(context.Background(), bucket, nil, nil, func() (*ParquetWriter, error) {
+		err = scanRangeToWriter(context.Background(), bucket, nil, nil, func() (*ParquetWriter, error) {
 			return writer, nil
 		})
 		require.NoError(t, err)
@@ -1002,7 +999,7 @@ func TestParquetWriter_OnFlush(t *testing.T) {
 			callbacks = append(callbacks, n)
 		}
 
-		_, err = scanRangeToWriter(context.Background(), bucket, nil, nil, func() (*ParquetWriter, error) {
+		err = scanRangeToWriter(context.Background(), bucket, nil, nil, func() (*ParquetWriter, error) {
 			return writer, nil
 		})
 		require.Error(t, err)
