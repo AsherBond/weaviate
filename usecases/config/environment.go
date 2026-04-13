@@ -1960,17 +1960,17 @@ func (c *Config) parseExportConfig() {
 		c.Export.DefaultBucket = configRuntime.NewDynamicValue("")
 	}
 
-	c.Export.DefaultPathSet = new(atomic.Bool)
+	c.Export.IsDefaultPathSet = new(atomic.Bool)
 	if v, ok := os.LookupEnv("EXPORT_DEFAULT_PATH"); ok {
 		c.Export.DefaultPath = configRuntime.NewDynamicValue(strings.TrimSpace(v))
-		c.Export.DefaultPathSet.Store(true)
+		c.Export.IsDefaultPathSet.Store(true)
 	} else if c.Export.DefaultPath != nil {
 		// Came from the startup config file — an explicit decision by the
-		// operator, even if the value is empty. DefaultPathSet is not
+		// operator, even if the value is empty. IsDefaultPathSet is not
 		// user-settable (see config.Export), so we derive it here. It may
 		// also be flipped to true at runtime by the "ExportDefaultPath" hook
 		// registered against the runtime config manager.
-		c.Export.DefaultPathSet.Store(true)
+		c.Export.IsDefaultPathSet.Store(true)
 	} else {
 		c.Export.DefaultPath = configRuntime.NewDynamicValue("")
 	}

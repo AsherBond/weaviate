@@ -1600,7 +1600,7 @@ func TestEnvironmentExportDefaultPath(t *testing.T) {
 			err := FromEnv(&conf)
 			require.Nil(t, err)
 			require.Equal(t, tt.expected, conf.Export.DefaultPath.Get())
-			require.Equal(t, tt.expectSet, conf.Export.DefaultPathSet.Load())
+			require.Equal(t, tt.expectSet, conf.Export.IsDefaultPathSet.Load())
 		})
 	}
 }

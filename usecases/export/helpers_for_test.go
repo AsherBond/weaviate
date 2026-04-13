@@ -400,9 +400,9 @@ func testExportConfig() config.Export {
 	pathSet := new(atomic.Bool)
 	pathSet.Store(true)
 	return config.Export{
-		Enabled:        configRuntime.NewDynamicValue(true),
-		DefaultBucket:  configRuntime.NewDynamicValue("test-bucket"),
-		DefaultPath:    configRuntime.NewDynamicValue(""),
-		DefaultPathSet: pathSet,
+		Enabled:          configRuntime.NewDynamicValue(true),
+		DefaultBucket:    configRuntime.NewDynamicValue("test-bucket"),
+		DefaultPath:      configRuntime.NewDynamicValue(""),
+		IsDefaultPathSet: pathSet,
 	}
 }

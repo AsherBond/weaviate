@@ -611,7 +611,7 @@ type Export struct {
 	// Env: EXPORT_DEFAULT_PATH, runtime config: export_default_path.
 	DefaultPath *runtime.DynamicValue[string] `json:"default_path" yaml:"default_path"`
 
-	// DefaultPathSet tracks whether DefaultPath was explicitly configured by the
+	// IsDefaultPathSet tracks whether DefaultPath was explicitly configured by the
 	// operator (vs. implicitly defaulted to the empty string). It is used to
 	// require an explicit path decision at export time — where an empty string
 	// is a valid, conscious choice (no prefix), but a missing value is not.
@@ -638,7 +638,7 @@ type Export struct {
 	// will not flip the flag, because the hook fires only on value changes
 	// and "" equals the startup default. Any non-empty value works, or set
 	// EXPORT_DEFAULT_PATH="" at startup.
-	DefaultPathSet *atomic.Bool `json:"-" yaml:"-"`
+	IsDefaultPathSet *atomic.Bool `json:"-" yaml:"-"`
 }
 
 const (

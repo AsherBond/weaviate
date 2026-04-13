@@ -596,11 +596,11 @@ replica_movement_minimum_async_wait: 10s`)
 // lets an operator configure exports for the first time via the runtime
 // config file (no env var, no startup YAML).
 //
-// Because Export.DefaultPathSet is intentionally not exposed in
+// Because Export.IsDefaultPathSet is intentionally not exposed in
 // WeaviateRuntimeConfig (it would be a footgun — operators could toggle the
 // "set" flag independently of DefaultPath and bypass the path-required
 // check), we rely on a hook registered against the "ExportDefaultPath" field
-// to flip DefaultPathSet whenever DefaultPath is updated via runtime
+// to flip IsDefaultPathSet whenever DefaultPath is updated via runtime
 // overrides. This test asserts that flipping behavior.
 //
 // Known limitation: the runtime config hook system only fires on value
@@ -608,7 +608,7 @@ replica_movement_minimum_async_wait: 10s`)
 // log entry only when old != new). An operator who runs without any startup
 // export config (DefaultPath="") and then writes literally
 // `export_default_path: ""` into the runtime config will NOT flip
-// DefaultPathSet, because the value is the same as the startup default and
+// IsDefaultPathSet, because the value is the same as the startup default and
 // the hook never fires. In practice this is a non-issue: any non-empty
 // value works, and operators who genuinely want the empty-prefix case can
 // set EXPORT_DEFAULT_PATH="" at startup instead.
@@ -619,20 +619,20 @@ func TestExportDefaultPathRuntimeOverride(t *testing.T) {
 	tests := []struct {
 		name             string
 		initialPath      string // startup value for source.ExportDefaultPath
-		initialPathSet   bool   // startup value for DefaultPathSet
+		initialPathSet   bool   // startup value for IsDefaultPathSet
 		runtimeConfig    string // YAML applied via UpdateRuntimeConfig
 		expectedPath     string
 		expectedPathSet  bool
 		assertionMessage string
 	}{
 		{
-			name:             "override with non-empty path flips DefaultPathSet from false to true",
+			name:             "override with non-empty path flips IsDefaultPathSet from false to true",
 			initialPath:      "",
 			initialPathSet:   false,
 			runtimeConfig:    `export_default_path: "from/runtime"`,
 			expectedPath:     "from/runtime",
 			expectedPathSet:  true,
-			assertionMessage: "hook should have flipped DefaultPathSet to true when ExportDefaultPath was updated",
+			assertionMessage: "hook should have flipped IsDefaultPathSet to true when ExportDefaultPath was updated",
 		},
 		{
 			name:            "override switching non-empty path to another non-empty path keeps it set",
@@ -678,8 +678,8 @@ func TestExportDefaultPathRuntimeOverride(t *testing.T) {
 		})
 	}
 
-	t.Run("ExportDefaultPathSet is not a user-facing runtime config knob", func(t *testing.T) {
-		// Regression: if someone ever re-adds ExportDefaultPathSet to
+	t.Run("ExportIsDefaultPathSet is not a user-facing runtime config knob", func(t *testing.T) {
+		// Regression: if someone ever re-adds ExportIsDefaultPathSet to
 		// WeaviateRuntimeConfig, operators could bypass the path-required
 		// check. This test ensures the field stays absent.
 		parsed, err := ParseRuntimeConfig([]byte(`export_default_path_set: true`))
@@ -705,7 +705,7 @@ func TestExportDefaultPathRuntimeOverride(t *testing.T) {
 // the ExportDefaultPath hook never fires. A subsequent forced ReloadConfig
 // (to apply hooks) then sees no value change and still doesn't fire the
 // hook. Without the explicit post-registration sync in postInitRuntimeOverrides,
-// DefaultPathSet would stay false and the scheduler would reject exports.
+// IsDefaultPathSet would stay false and the scheduler would reject exports.
 func TestExportDefaultPathRuntimeOverrideFullFlow(t *testing.T) {
 	log := logrus.New()
 	log.SetOutput(io.Discard)
@@ -720,11 +720,11 @@ func TestExportDefaultPathRuntimeOverrideFullFlow(t *testing.T) {
 		}
 	}
 
-	// syncDefaultPathSet implements the post-registration manual sync.
+	// syncIsDefaultPathSet implements the post-registration manual sync.
 	// configure_api.go's postInitRuntimeOverrides does the same after
 	// cm.RegisterHooks to handle the initial-load case (where hooks weren't
 	// registered yet).
-	syncDefaultPathSet := func(source *WeaviateRuntimeConfig, defaultPathSet *atomic.Bool) {
+	syncIsDefaultPathSet := func(source *WeaviateRuntimeConfig, defaultPathSet *atomic.Bool) {
 		if source.ExportDefaultPath != nil && source.ExportDefaultPath.Get() != "" {
 			defaultPathSet.Store(true)
 		}
@@ -752,21 +752,21 @@ func TestExportDefaultPathRuntimeOverrideFullFlow(t *testing.T) {
 			runtimeConfig:    `export_default_path: "from/runtime"`,
 			expectedPath:     "from/runtime",
 			expectedPathSet:  true,
-			assertionMessage: "manual post-registration sync must flip DefaultPathSet when runtime config set a non-empty path",
+			assertionMessage: "manual post-registration sync must flip IsDefaultPathSet when runtime config set a non-empty path",
 		},
 		{
-			name:             "no export_default_path line → DefaultPathSet stays false",
+			name:             "no export_default_path line → IsDefaultPathSet stays false",
 			runtimeConfig:    `# no export config here`,
 			expectedPath:     "",
 			expectedPathSet:  false,
-			assertionMessage: "no runtime config entry → nothing should flip DefaultPathSet",
+			assertionMessage: "no runtime config entry → nothing should flip IsDefaultPathSet",
 		},
 		{
 			// Documented edge case: an operator with no env/YAML config
 			// writing `export_default_path: ""` only via runtime config at
 			// startup. The manual sync uses Get() != "" as its heuristic
 			// and cannot distinguish "operator set empty" from "nothing
-			// set", so DefaultPathSet stays false.
+			// set", so IsDefaultPathSet stays false.
 			name:             "empty path only via runtime config at startup is a documented limitation",
 			runtimeConfig:    `export_default_path: ""`,
 			expectedPath:     "",
@@ -779,7 +779,7 @@ func TestExportDefaultPathRuntimeOverrideFullFlow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// parseExportConfig at startup with no env and no YAML:
 			//   DefaultPath = NewDynamicValue("") [def="", val=nil]
-			//   DefaultPathSet = new(atomic.Bool) [false]
+			//   IsDefaultPathSet = new(atomic.Bool) [false]
 			source := &WeaviateRuntimeConfig{
 				ExportDefaultPath: runtime.NewDynamicValue(""),
 			}
@@ -804,7 +804,7 @@ func TestExportDefaultPathRuntimeOverrideFullFlow(t *testing.T) {
 
 			// The explicit manual sync in postInitRuntimeOverrides catches
 			// the case by observing that DefaultPath is non-empty.
-			syncDefaultPathSet(source, defaultPathSet)
+			syncIsDefaultPathSet(source, defaultPathSet)
 
 			assert.Equal(t, tt.expectedPath, source.ExportDefaultPath.Get())
 			assert.Equal(t, tt.expectedPathSet, defaultPathSet.Load(), tt.assertionMessage)
