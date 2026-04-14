@@ -19,6 +19,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -848,6 +849,63 @@ func TestReplicationOverwriteObjectsCompression(t *testing.T) {
 	})
 }
 
+func TestReplicationOverwriteObjectsConcurrent(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	input := []*objects.VObject{
+		{
+			LatestObject: &models.Object{
+				ID:                 UUID1,
+				Class:              "C1",
+				LastUpdateTimeUnix: now.UnixMilli(),
+			},
+			StaleUpdateTime: now.UnixMilli(),
+		},
+	}
+	expected := []types.RepairResponse{
+		{ID: UUID1.String(), UpdateTime: now.UnixMilli()},
+	}
+
+	// Each request handler decompresses the body independently to verify the
+	// pooled encoder produces correct output under concurrent use.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dec, err := zstd.NewReader(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer dec.Close()
+		if _, err := io.ReadAll(dec); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		b, _ := json.Marshal(expected)
+		w.Write(b)
+	}))
+	defer server.Close()
+
+	// A single client is shared across all goroutines to exercise the encoder
+	// pool under concurrent use. Run with -race to detect data races.
+	c := newReplicationClient(t, server.Client())
+
+	const goroutines = 50
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	errs := make([]error, goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			_, errs[idx] = c.OverwriteObjects(context.Background(), server.URL[7:], "C1", "S1", input)
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		require.NoErrorf(t, err, "goroutine %d failed", i)
+	}
+}
+
 func TestExpBackOff(t *testing.T) {
 	N := 200
 	av := time.Duration(0)
@@ -863,7 +921,8 @@ func TestExpBackOff(t *testing.T) {
 
 func newReplicationClient(t *testing.T, httpClient *http.Client) *replicationClient {
 	t.Helper()
-	c := NewReplicationClient(httpClient)
+	c, err := NewReplicationClient(httpClient)
+	require.NoError(t, err)
 	c.minBackOff = time.Millisecond * 1
 	c.maxBackOff = time.Millisecond * 8
 	c.timeoutUnit = time.Millisecond * 20
