@@ -200,8 +200,11 @@ func (s *s3Client) getClient(ctx context.Context) (*minio.Client, error) {
 	return s.client, nil
 }
 
-func (s *s3Client) makeObjectName(parts ...string) string {
+func (s *s3Client) makeObjectName(overridePath string, parts ...string) string {
 	base := path.Join(parts...)
+	if overridePath != "" {
+		return path.Join(overridePath, base)
+	}
 	return path.Join(s.config.BackupPath, base)
 }
 
@@ -212,10 +215,7 @@ func (s *s3Client) bucketAndPath(backupID, key, overrideBucket, overridePath str
 	if overrideBucket != "" {
 		bucket = overrideBucket
 	}
-	objectName = s.makeObjectName(backupID, key)
-	if overridePath != "" {
-		objectName = path.Join(overridePath, backupID, key)
-	}
+	objectName = s.makeObjectName(overridePath, backupID, key)
 	return bucket, objectName
 }
 
@@ -231,7 +231,7 @@ func (s *s3Client) HomeDir(backupID, overrideBucket, overridePath string) string
 		remoteBucket = overrideBucket
 	}
 
-	return "s3://" + path.Join(remoteBucket, remotePath, s.makeObjectName(backupID))
+	return "s3://" + path.Join(remoteBucket, s.makeObjectName(remotePath, backupID))
 }
 
 func (s *s3Client) AllBackups(ctx context.Context,
