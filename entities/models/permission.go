@@ -51,9 +51,6 @@ type Permission struct {
 	// groups
 	Groups *PermissionGroups `json:"groups,omitempty"`
 
-	// resources applicable for MCP actions
-	Mcp interface{} `json:"mcp,omitempty"`
-
 	// nodes
 	Nodes *PermissionNodes `json:"nodes,omitempty"`
 

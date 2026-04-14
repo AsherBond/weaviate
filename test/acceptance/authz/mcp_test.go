@@ -98,7 +98,6 @@ func TestMCPServerAuthZ(t *testing.T) {
 		Permissions: []*models.Permission{
 			{
 				Action: &authorization.ReadMcp,
-				Mcp:    make(map[string]any),
 			},
 			{
 				Action: &authorization.ReadCollections,
@@ -183,11 +182,9 @@ func TestMCPServerCollectionLevelAuthZ(t *testing.T) {
 		Permissions: []*models.Permission{
 			{
 				Action: &authorization.ReadMcp,
-				Mcp:    make(map[string]any),
 			},
 			{
 				Action: &authorization.UpdateMcp,
-				Mcp:    make(map[string]any),
 			},
 			{
 				Action: &authorization.ReadCollections,
@@ -352,7 +349,7 @@ func TestMCPPermissionSeparation(t *testing.T) {
 	helper.CreateRole(t, adminKey, &models.Role{
 		Name: &readRole,
 		Permissions: []*models.Permission{
-			{Action: &authorization.ReadMcp, Mcp: make(map[string]any)},
+			{Action: &authorization.ReadMcp},
 			{Action: &authorization.ReadCollections, Collections: &models.PermissionCollections{Collection: &className}},
 			{Action: &authorization.ReadData, Data: &models.PermissionData{Collection: &className}},
 		},
@@ -367,7 +364,7 @@ func TestMCPPermissionSeparation(t *testing.T) {
 	helper.CreateRole(t, adminKey, &models.Role{
 		Name: &writeRole,
 		Permissions: []*models.Permission{
-			{Action: &authorization.UpdateMcp, Mcp: make(map[string]any)},
+			{Action: &authorization.UpdateMcp},
 			{Action: &authorization.CreateData, Data: &models.PermissionData{Collection: &className}},
 			{Action: &authorization.UpdateData, Data: &models.PermissionData{Collection: &className}},
 		},

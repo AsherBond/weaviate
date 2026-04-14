@@ -8486,10 +8486,6 @@ func init() {
             }
           }
         },
-        "mcp": {
-          "description": "resources applicable for MCP actions",
-          "type": "object"
-        },
         "nodes": {
           "description": "Resources applicable for cluster actions.",
           "type": "object",
@@ -18886,10 +18882,6 @@ func init() {
               "$ref": "#/definitions/GroupType"
             }
           }
-        },
-        "mcp": {
-          "description": "resources applicable for MCP actions",
-          "type": "object"
         },
         "nodes": {
           "description": "Resources applicable for cluster actions.",
