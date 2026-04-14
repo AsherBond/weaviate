@@ -52,7 +52,7 @@ func Tools(creator *WeaviateCreator, configs map[string]internal.ToolConfig) []s
 			"Upserts (inserts or updates) one or more objects into a collection in batch. Supports batch operations for efficient bulk inserts and updates.")),
 		mcp.WithInputSchema[UpsertObjectArgs](),
 		mcp.WithReadOnlyHintAnnotation(false),
-		mcp.WithDestructiveHintAnnotation(false),
+		mcp.WithDestructiveHintAnnotation(true),
 		mcp.WithIdempotentHintAnnotation(true),
 	)
 	internal.ApplySchemaDescriptions(&tool, toolName, configs)
