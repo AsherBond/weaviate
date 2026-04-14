@@ -221,17 +221,10 @@ func (s *s3Client) bucketAndPath(backupID, key, overrideBucket, overridePath str
 
 func (s *s3Client) HomeDir(backupID, overrideBucket, overridePath string) string {
 	remoteBucket := s.config.Bucket
-	remotePath := s.config.BackupPath
-
-	if overridePath != "" {
-		remotePath = path.Join(overridePath)
-	}
-
 	if overrideBucket != "" {
 		remoteBucket = overrideBucket
 	}
-
-	return "s3://" + path.Join(remoteBucket, s.makeObjectName(remotePath, backupID))
+	return "s3://" + path.Join(remoteBucket, s.makeObjectName(overridePath, backupID))
 }
 
 func (s *s3Client) AllBackups(ctx context.Context,
