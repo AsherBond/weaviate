@@ -8409,6 +8409,7 @@ func init() {
             "delete_aliases",
             "assign_and_revoke_groups",
             "read_groups",
+            "create_mcp",
             "read_mcp",
             "update_mcp"
           ]
@@ -18806,6 +18807,7 @@ func init() {
             "delete_aliases",
             "assign_and_revoke_groups",
             "read_groups",
+            "create_mcp",
             "read_mcp",
             "update_mcp"
           ]

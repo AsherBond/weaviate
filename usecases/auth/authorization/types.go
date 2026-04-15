@@ -147,6 +147,7 @@ var (
 	UpdateAliases = "update_aliases"
 	DeleteAliases = "delete_aliases"
 
+	CreateMcp = "create_mcp"
 	ReadMcp   = "read_mcp"
 	UpdateMcp = "update_mcp"
 
@@ -208,6 +209,7 @@ var (
 		DeleteAliases,
 
 		// MCP domain
+		CreateMcp,
 		ReadMcp,
 		UpdateMcp,
 	}

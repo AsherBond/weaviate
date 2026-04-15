@@ -30,11 +30,14 @@ func (c *WeaviateCreator) UpsertObject(ctx context.Context, req mcp.CallToolRequ
 	})
 	log.Debug("upserting objects")
 
-	// Authorize MCP-level update permission (covers upsert).
+	// Authorize MCP-level CREATE and UPDATE permissions (upsert requires both).
 	// Collection-level data authorization (CREATE/UPDATE per collection) is
 	// enforced by batchManager.AddObjects (see usecases/objects/batch_add.go).
-	principal, err := c.Authorize(ctx, req, authorization.UPDATE)
+	principal, err := c.Authorize(ctx, req, authorization.CREATE)
 	if err != nil {
+		return nil, err
+	}
+	if _, err := c.Authorize(ctx, req, authorization.UPDATE); err != nil {
 		return nil, err
 	}
 
