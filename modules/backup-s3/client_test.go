@@ -329,66 +329,78 @@ func TestExportBackend_AlwaysReturnsExportClient(t *testing.T) {
 }
 
 func TestBucketAndPath(t *testing.T) {
-	client := &s3Client{config: &clientConfig{Bucket: "default-bucket", BackupPath: "default-path"}}
-
 	tests := []struct {
 		name           string
-		backupID       string
-		key            string
+		configBucket   string
+		configPath     string
 		overrideBucket string
 		overridePath   string
 		wantBucket     string
 		wantObject     string
+		wantErr        string
 	}{
 		{
-			name:       "no overrides",
-			backupID:   "backup-1",
-			key:        "file.db",
-			wantBucket: "default-bucket",
-			wantObject: "default-path/backup-1/file.db",
+			name:         "no overrides",
+			configBucket: "default-bucket",
+			configPath:   "default-path",
+			wantBucket:   "default-bucket",
+			wantObject:   "default-path/backup-1/file.db",
 		},
 		{
 			name:           "override bucket only",
-			backupID:       "backup-1",
-			key:            "file.db",
+			configBucket:   "default-bucket",
+			configPath:     "default-path",
 			overrideBucket: "export-bucket",
 			wantBucket:     "export-bucket",
 			wantObject:     "default-path/backup-1/file.db",
 		},
 		{
 			name:         "override path only",
-			backupID:     "backup-1",
-			key:          "file.db",
+			configBucket: "default-bucket",
+			configPath:   "default-path",
 			overridePath: "export-path",
 			wantBucket:   "default-bucket",
 			wantObject:   "export-path/backup-1/file.db",
 		},
 		{
 			name:           "override both",
-			backupID:       "backup-1",
-			key:            "file.db",
+			configBucket:   "default-bucket",
+			configPath:     "default-path",
 			overrideBucket: "export-bucket",
 			overridePath:   "export-path",
 			wantBucket:     "export-bucket",
 			wantObject:     "export-path/backup-1/file.db",
 		},
+		{
+			name:         "empty config bucket without override returns error",
+			configBucket: "",
+			configPath:   "path",
+			wantErr:      "bucket must not be empty",
+		},
+		{
+			name:           "empty config bucket with override succeeds",
+			configBucket:   "",
+			configPath:     "path",
+			overrideBucket: "override-bucket",
+			wantBucket:     "override-bucket",
+			wantObject:     "path/backup-1/file.db",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bucket, objectName, err := client.bucketAndPath(tt.backupID, tt.key, tt.overrideBucket, tt.overridePath)
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantBucket, bucket)
-			assert.Equal(t, tt.wantObject, objectName)
+			client := &s3Client{config: &clientConfig{Bucket: tt.configBucket, BackupPath: tt.configPath}}
+			bucket, objectName, err := client.bucketAndPath("backup-1", "file.db", tt.overrideBucket, tt.overridePath)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantBucket, bucket)
+				assert.Equal(t, tt.wantObject, objectName)
+			}
 		})
 	}
-
-	t.Run("empty bucket returns error", func(t *testing.T) {
-		emptyBucketClient := &s3Client{config: &clientConfig{Bucket: "", BackupPath: "path"}}
-		_, _, err := emptyBucketClient.bucketAndPath("backup-1", "file.db", "", "")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "bucket must not be empty")
-	})
 }
 
 func TestRefreshableAssumeRole_IsProvider(t *testing.T) {
