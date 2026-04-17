@@ -210,12 +210,11 @@ func TestScheduler_StorageConfigValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("passes validation when path is empty (no prefix)", func(t *testing.T) {
+	t.Run("passes validation when path is empty", func(t *testing.T) {
 		s := newScheduler()
 		s.exportConfig.DefaultPath = configRuntime.NewDynamicValue("")
-		// Empty path is a valid default (no prefix). Downstream errors are
-		// fine because this scheduler is stubbed and may fail later for
-		// unrelated reasons.
+		// Empty path is a valid default. Downstream errors are fine because
+		// this scheduler is stubbed and may fail later for unrelated reasons.
 		for name, err := range callAll(s) {
 			if err != nil {
 				assert.NotContainsf(t, err.Error(), "EXPORT_DEFAULT_PATH", "%s should not fail on path validation", name)

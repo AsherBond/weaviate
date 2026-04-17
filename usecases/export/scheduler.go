@@ -936,8 +936,9 @@ func requiresBucket(backend string) bool {
 
 // validateStorageConfig returns the configured bucket and path. It is shared
 // by Export, Status and Cancel because all three need to address the same
-// storage location. The bucket is required for bucket-backed backends, but
-// the path defaults to empty (no prefix) if not configured.
+// storage location. The bucket is required for bucket-backed backends.
+// The path defaults to empty if not configured; each backend module provides
+// a dedicated export client that does not fall back to the backup path.
 func (s *Scheduler) validateStorageConfig(backend string) (bucket, path string, err error) {
 	bucket = s.exportConfig.DefaultBucket.Get()
 	path = s.exportConfig.DefaultPath.Get()
