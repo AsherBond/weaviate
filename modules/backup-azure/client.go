@@ -119,6 +119,17 @@ func (a *azureClient) HomeDir(backupID, overrideBucket, overridePath string) str
 	return a.serviceURL + path.Join(overrideBucket, a.makeObjectName(overridePath, []string{backupID}))
 }
 
+func (a *azureClient) resolveContainer(overrideBucket string) (string, error) {
+	container := a.config.Container
+	if overrideBucket != "" {
+		container = overrideBucket
+	}
+	if container == "" {
+		return "", fmt.Errorf("container must not be empty")
+	}
+	return container, nil
+}
+
 func (g *azureClient) makeObjectName(overridePath string, parts []string) string {
 	if overridePath != "" {
 		base := path.Join(parts...)
@@ -161,13 +172,11 @@ func (a *azureClient) AllBackups(ctx context.Context) ([]*backup.DistributedBack
 }
 
 func (a *azureClient) GetObject(ctx context.Context, backupID, key, overrideBucket, overridePath string) ([]byte, error) {
-	objectName := a.makeObjectName(overridePath, []string{backupID, key})
-
-	containerName := a.config.Container
-	if overrideBucket != "" {
-		containerName = overrideBucket
+	containerName, err := a.resolveContainer(overrideBucket)
+	if err != nil {
+		return nil, err
 	}
-
+	objectName := a.makeObjectName(overridePath, []string{backupID, key})
 	return a.getObject(ctx, containerName, objectName)
 }
 
@@ -194,15 +203,14 @@ func (a *azureClient) getObject(ctx context.Context, containerName, objectName s
 }
 
 func (a *azureClient) PutObject(ctx context.Context, backupID, key, overrideBucket, overridePath string, data []byte) error {
+	containerName, err := a.resolveContainer(overrideBucket)
+	if err != nil {
+		return err
+	}
 	objectName := a.makeObjectName(overridePath, []string{backupID, key})
 
-	containerName := a.config.Container
-	if overrideBucket != "" {
-		containerName = overrideBucket
-	}
-
 	reader := bytes.NewReader(data)
-	_, err := a.client.UploadStream(ctx,
+	if _, err = a.client.UploadStream(ctx,
 		containerName,
 		objectName,
 		reader,
@@ -211,8 +219,7 @@ func (a *azureClient) PutObject(ctx context.Context, backupID, key, overrideBuck
 			Tags:        map[string]string{"backupid": backupID},
 			BlockSize:   a.getBlockSize(ctx),
 			Concurrency: a.getConcurrency(ctx),
-		})
-	if err != nil {
+		}); err != nil {
 		return backup.NewErrInternal(errors.Wrapf(err, "upload stream for object %s", objectName))
 	}
 
@@ -220,15 +227,15 @@ func (a *azureClient) PutObject(ctx context.Context, backupID, key, overrideBuck
 }
 
 func (a *azureClient) Initialize(ctx context.Context, backupID, overrideBucket, overridePath string) error {
+	containerName, err := a.resolveContainer(overrideBucket)
+	if err != nil {
+		return err
+	}
+
 	key := "access-check"
 
 	if err := a.PutObject(ctx, backupID, key, overrideBucket, overridePath, []byte("")); err != nil {
 		return errors.Wrap(err, "failed to access-check Azure backup module")
-	}
-
-	containerName := a.config.Container
-	if overrideBucket != "" {
-		containerName = overrideBucket
 	}
 
 	objectName := a.makeObjectName(overridePath, []string{backupID, key})
@@ -240,6 +247,11 @@ func (a *azureClient) Initialize(ctx context.Context, backupID, overrideBucket, 
 }
 
 func (a *azureClient) WriteToFile(ctx context.Context, backupID, key, destPath, overrideBucket, overridePath string) error {
+	containerName, err := a.resolveContainer(overrideBucket)
+	if err != nil {
+		return err
+	}
+
 	dir := path.Dir(destPath)
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		return errors.Wrapf(err, "make dir %s", dir)
@@ -250,11 +262,6 @@ func (a *azureClient) WriteToFile(ctx context.Context, backupID, key, destPath, 
 		return backup.NewErrInternal(errors.Wrapf(err, "create file: %q", destPath))
 	}
 	defer file.Close()
-
-	containerName := a.config.Container
-	if overrideBucket != "" {
-		containerName = overrideBucket
-	}
 
 	objectName := a.makeObjectName(overridePath, []string{backupID, key})
 	_, err = a.client.DownloadFile(ctx, containerName, objectName, file, nil)
@@ -305,6 +312,11 @@ func (a *azureClient) getConcurrency(ctx context.Context) int {
 }
 
 func (a *azureClient) Write(ctx context.Context, backupID, key, overrideBucket, overridePath string, r backup.ReadCloserWithError) (written int64, err error) {
+	containerName, err := a.resolveContainer(overrideBucket)
+	if err != nil {
+		return 0, err
+	}
+
 	path := a.makeObjectName(overridePath, []string{backupID, key})
 	reader := &reader{src: r}
 	// Close the reader when done. Use CloseWithError to signal any error to the
@@ -313,11 +325,6 @@ func (a *azureClient) Write(ctx context.Context, backupID, key, overrideBucket, 
 		r.CloseWithError(err)
 		written = int64(reader.count)
 	}()
-
-	containerName := a.config.Container
-	if overrideBucket != "" {
-		containerName = overrideBucket
-	}
 
 	if _, err = a.client.UploadStream(ctx,
 		containerName,
@@ -338,9 +345,9 @@ func (a *azureClient) Write(ctx context.Context, backupID, key, overrideBucket, 
 func (a *azureClient) Read(ctx context.Context, backupID, key, overrideBucket, overridePath string, w io.WriteCloser) (int64, error) {
 	defer w.Close()
 
-	containerName := a.config.Container
-	if overrideBucket != "" {
-		containerName = overrideBucket
+	containerName, err := a.resolveContainer(overrideBucket)
+	if err != nil {
+		return -1, err
 	}
 
 	path := a.makeObjectName(overridePath, []string{backupID, key})

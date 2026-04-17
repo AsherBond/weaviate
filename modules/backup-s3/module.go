@@ -50,7 +50,7 @@ const (
 
 type Module struct {
 	*s3Client              // embedded — handles backup (all BackupBackend methods auto-promoted)
-	exportClient *s3Client // only set when EXPORT_S3_ROLE_ARN is configured
+	exportClient *s3Client // export-only client: no default bucket or path; the scheduler supplies both
 	logger       logrus.FieldLogger
 	dataPath     string
 }
@@ -94,11 +94,11 @@ func (m *Module) Init(ctx context.Context,
 	}
 	m.s3Client = client
 
-	// Always create a separate export client with BackupPath="" so that
-	// exports default to the bucket root instead of inheriting BACKUP_S3_PATH.
-	// When EXPORT_S3_ROLE_ARN is set, the export client additionally uses
-	// STS AssumeRole for cross-account access.
-	exportCfg := newConfig(os.Getenv(s3Endpoint), bucket, "", useSSL)
+	// Create a separate export client with no default bucket or path.
+	// The export scheduler supplies both via EXPORT_DEFAULT_BUCKET and
+	// EXPORT_DEFAULT_PATH. When EXPORT_S3_ROLE_ARN is set the export
+	// client additionally uses STS AssumeRole for cross-account access.
+	exportCfg := newConfig(os.Getenv(s3Endpoint), "", "", useSSL)
 	if exportRoleARN := os.Getenv(exportS3RoleARN); exportRoleARN != "" {
 		exportCfg.RoleARN = exportRoleARN
 		exportCfg.ExternalID = os.Getenv(exportS3ExternalID)
@@ -117,9 +117,9 @@ func (m *Module) Init(ctx context.Context,
 	return nil
 }
 
-// ExportBackend returns the export-specific backend whose BackupPath is
-// always empty, so exports default to the bucket root rather than
-// inheriting the backup module's BACKUP_S3_PATH.
+// ExportBackend returns the export-specific backend. It has no default
+// bucket or path; the export scheduler supplies both via
+// EXPORT_DEFAULT_BUCKET and EXPORT_DEFAULT_PATH.
 func (m *Module) ExportBackend() modulecapabilities.BackupBackend {
 	return &exportS3Backend{m.exportClient}
 }

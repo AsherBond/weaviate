@@ -48,7 +48,7 @@ type clientConfig struct {
 type Module struct {
 	logger       logrus.FieldLogger
 	*gcsClient              // backup client
-	exportClient *gcsClient // export client (BackupPath="")
+	exportClient *gcsClient // export-only client: no default bucket or path; the scheduler supplies both
 	dataPath     string
 }
 
@@ -93,8 +93,8 @@ func (m *Module) Init(ctx context.Context,
 	m.gcsClient = client
 
 	exportConfig := &clientConfig{
-		Bucket:     os.Getenv(gcsBucket),
-		BackupPath: "", // exports default to bucket root
+		Bucket:     "", // export scheduler provides bucket via EXPORT_DEFAULT_BUCKET
+		BackupPath: "", // export scheduler provides path via EXPORT_DEFAULT_PATH
 	}
 	exportClient, err := newClient(ctx, exportConfig, m.dataPath, m.logger)
 	if err != nil {
@@ -113,9 +113,9 @@ func (m *Module) MetaInfo() (map[string]interface{}, error) {
 	return metaInfo, nil
 }
 
-// ExportBackend returns the export-specific backend whose BackupPath is
-// always empty, so exports default to the bucket root rather than
-// inheriting the backup module's BACKUP_GCS_PATH.
+// ExportBackend returns the export-specific backend. It has no default
+// bucket or path; the export scheduler supplies both via
+// EXPORT_DEFAULT_BUCKET and EXPORT_DEFAULT_PATH.
 func (m *Module) ExportBackend() modulecapabilities.BackupBackend {
 	return &exportGCSBackend{m.exportClient}
 }

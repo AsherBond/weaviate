@@ -376,11 +376,19 @@ func TestBucketAndPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bucket, objectName := client.bucketAndPath(tt.backupID, tt.key, tt.overrideBucket, tt.overridePath)
+			bucket, objectName, err := client.bucketAndPath(tt.backupID, tt.key, tt.overrideBucket, tt.overridePath)
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantBucket, bucket)
 			assert.Equal(t, tt.wantObject, objectName)
 		})
 	}
+
+	t.Run("empty bucket returns error", func(t *testing.T) {
+		emptyBucketClient := &s3Client{config: &clientConfig{Bucket: "", BackupPath: "path"}}
+		_, _, err := emptyBucketClient.bucketAndPath("backup-1", "file.db", "", "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "bucket must not be empty")
+	})
 }
 
 func TestRefreshableAssumeRole_IsProvider(t *testing.T) {

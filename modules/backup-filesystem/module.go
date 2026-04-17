@@ -36,7 +36,7 @@ type Module struct {
 	logger        logrus.FieldLogger
 	dataPath      string  // path to the current (operational) data
 	backupsPath   string  // complete(?) path to the directory that holds all the backups
-	exportBackend *Module // export backend (backupsPath="")
+	exportBackend *Module // export-only backend: no default bucket or path; the scheduler supplies both
 }
 
 func New() *Module {
@@ -69,9 +69,9 @@ func (m *Module) Init(ctx context.Context,
 		return fmt.Errorf("init backup backend: %w", err)
 	}
 
-	// Export backend with backupsPath="" so that exports use the
-	// overridePath from EXPORT_DEFAULT_PATH rather than falling back
-	// to BACKUP_FILESYSTEM_PATH.
+	// Create a separate export backend with no default bucket or path.
+	// The export scheduler supplies both via EXPORT_DEFAULT_BUCKET
+	// and EXPORT_DEFAULT_PATH.
 	m.exportBackend = &Module{
 		logger:   m.logger,
 		dataPath: m.dataPath,
@@ -124,9 +124,9 @@ func (m *Module) makeBackupDirPath(path, id string) string {
 	return filepath.Join(path, id)
 }
 
-// ExportBackend returns the export-specific backend whose backupsPath is
-// empty, so exports use only the overridePath from EXPORT_DEFAULT_PATH
-// rather than falling back to BACKUP_FILESYSTEM_PATH.
+// ExportBackend returns the export-specific backend. It has no default
+// bucket or path; the export scheduler supplies both via
+// EXPORT_DEFAULT_BUCKET and EXPORT_DEFAULT_PATH.
 func (m *Module) ExportBackend() modulecapabilities.BackupBackend {
 	return m.exportBackend
 }

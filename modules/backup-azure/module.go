@@ -48,7 +48,7 @@ type clientConfig struct {
 type Module struct {
 	logger       logrus.FieldLogger
 	*azureClient              // backup client
-	exportClient *azureClient // export client (BackupPath="")
+	exportClient *azureClient // export-only client: no default container or path; the scheduler supplies both
 	dataPath     string
 }
 
@@ -93,8 +93,8 @@ func (m *Module) Init(ctx context.Context,
 	m.azureClient = client
 
 	exportConfig := &clientConfig{
-		Container:  os.Getenv(azureContainer),
-		BackupPath: "", // exports default to container root
+		Container:  "", // export scheduler provides bucket via EXPORT_DEFAULT_BUCKET
+		BackupPath: "", // export scheduler provides path via EXPORT_DEFAULT_PATH
 	}
 	exportClient, err := newClient(ctx, exportConfig, m.dataPath, m.logger)
 	if err != nil {
@@ -113,9 +113,9 @@ func (m *Module) MetaInfo() (map[string]interface{}, error) {
 	return metaInfo, nil
 }
 
-// ExportBackend returns the export-specific backend whose BackupPath is
-// always empty, so exports default to the container root rather than
-// inheriting the backup module's BACKUP_AZURE_PATH.
+// ExportBackend returns the export-specific backend. It has no default
+// container or path; the export scheduler supplies both via
+// EXPORT_DEFAULT_BUCKET and EXPORT_DEFAULT_PATH.
 func (m *Module) ExportBackend() modulecapabilities.BackupBackend {
 	return &exportAzureBackend{m.exportClient}
 }
