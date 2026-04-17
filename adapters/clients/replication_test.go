@@ -386,7 +386,11 @@ func TestReplicationAbort(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "decode response")
 	})
-	client.timeoutUnit = client.maxBackOff * 3
+	// timeoutUnit * 5 drives the per-request context deadline. Setting it to
+	// maxBackOff*100 (800ms) makes the deadline >> MaxElapsedTime (72ms), so
+	// the retry loop always exhausts retries rather than the context, even under
+	// CI scheduling pressure.
+	client.timeoutUnit = client.maxBackOff * 100
 	t.Run("ServerInternalError", func(t *testing.T) {
 		_, err := client.Abort(ctx, fs.host, "C1", "S1", RequestInternalError)
 		assert.NotNil(t, err)
@@ -709,6 +713,9 @@ func TestReplicationDigestObjectsInRange(t *testing.T) {
 		defer server.Close()
 
 		c := newReplicationClient(t, server.Client())
+		// timeoutUnit*20 is the per-request deadline; set it large enough to
+		// survive CI scheduling jitter without relying on retry.
+		c.timeoutUnit = time.Second
 		got, err := c.DigestObjectsInRange(context.Background(), server.URL[7:], "C1", "S1", UUID1, UUID2, 10)
 		require.NoError(t, err)
 		require.Len(t, got, 2)
@@ -727,6 +734,7 @@ func TestReplicationDigestObjectsInRange(t *testing.T) {
 		defer server.Close()
 
 		c := newReplicationClient(t, server.Client())
+		c.timeoutUnit = time.Second
 		got, err := c.DigestObjectsInRange(context.Background(), server.URL[7:], "C1", "S1", UUID1, UUID2, 10)
 		require.NoError(t, err)
 		require.Len(t, got, 2)
@@ -745,6 +753,7 @@ func TestReplicationDigestObjectsInRange(t *testing.T) {
 		defer server.Close()
 
 		c := newReplicationClient(t, server.Client())
+		c.timeoutUnit = time.Second
 		got, err := c.DigestObjectsInRange(context.Background(), server.URL[7:], "C1", "S1", UUID1, UUID2, 10)
 		require.NoError(t, err)
 		assert.Empty(t, got)
