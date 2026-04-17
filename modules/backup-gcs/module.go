@@ -46,9 +46,10 @@ type clientConfig struct {
 }
 
 type Module struct {
-	logger logrus.FieldLogger
-	*gcsClient
-	dataPath string
+	logger       logrus.FieldLogger
+	*gcsClient              // backup client
+	exportClient *gcsClient // export client (BackupPath="")
+	dataPath     string
 }
 
 func New() *Module {
@@ -90,6 +91,16 @@ func (m *Module) Init(ctx context.Context,
 		return errors.Wrap(err, "init gcs client")
 	}
 	m.gcsClient = client
+
+	exportConfig := &clientConfig{
+		Bucket:     os.Getenv(gcsBucket),
+		BackupPath: "", // exports default to bucket root
+	}
+	exportClient, err := newClient(ctx, exportConfig, m.dataPath, m.logger)
+	if err != nil {
+		return errors.Wrap(err, "init gcs export client")
+	}
+	m.exportClient = exportClient
 	return nil
 }
 
@@ -102,9 +113,24 @@ func (m *Module) MetaInfo() (map[string]interface{}, error) {
 	return metaInfo, nil
 }
 
+// ExportBackend returns the export-specific backend whose BackupPath is
+// always empty, so exports default to the bucket root rather than
+// inheriting the backup module's BACKUP_GCS_PATH.
+func (m *Module) ExportBackend() modulecapabilities.BackupBackend {
+	return &exportGCSBackend{m.exportClient}
+}
+
+type exportGCSBackend struct {
+	*gcsClient
+}
+
+func (e *exportGCSBackend) IsExternal() bool { return true }
+func (e *exportGCSBackend) Name() string     { return Name }
+
 // verify we implement the modules.Module interface
 var (
 	_ = modulecapabilities.Module(New())
 	_ = modulecapabilities.BackupBackend(New())
 	_ = modulecapabilities.MetaProvider(New())
+	_ = modulecapabilities.ExportBackendProvider(New())
 )

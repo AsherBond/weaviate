@@ -33,9 +33,10 @@ const (
 )
 
 type Module struct {
-	logger      logrus.FieldLogger
-	dataPath    string // path to the current (operational) data
-	backupsPath string // complete(?) path to the directory that holds all the backups
+	logger        logrus.FieldLogger
+	dataPath      string  // path to the current (operational) data
+	backupsPath   string  // complete(?) path to the directory that holds all the backups
+	exportBackend *Module // export backend (backupsPath="")
 }
 
 func New() *Module {
@@ -66,6 +67,14 @@ func (m *Module) Init(ctx context.Context,
 	backupsPath := os.Getenv(backupsPathName)
 	if err := m.initBackupBackend(ctx, backupsPath); err != nil {
 		return fmt.Errorf("init backup backend: %w", err)
+	}
+
+	// Export backend with backupsPath="" so that exports use the
+	// overridePath from EXPORT_DEFAULT_PATH rather than falling back
+	// to BACKUP_FILESYSTEM_PATH.
+	m.exportBackend = &Module{
+		logger:   m.logger,
+		dataPath: m.dataPath,
 	}
 
 	return nil
@@ -115,9 +124,17 @@ func (m *Module) makeBackupDirPath(path, id string) string {
 	return filepath.Join(path, id)
 }
 
+// ExportBackend returns the export-specific backend whose backupsPath is
+// empty, so exports use only the overridePath from EXPORT_DEFAULT_PATH
+// rather than falling back to BACKUP_FILESYSTEM_PATH.
+func (m *Module) ExportBackend() modulecapabilities.BackupBackend {
+	return m.exportBackend
+}
+
 // verify we implement the modules.Module interface
 var (
 	_ = modulecapabilities.Module(New())
 	_ = modulecapabilities.BackupBackend(New())
 	_ = modulecapabilities.MetaProvider(New())
+	_ = modulecapabilities.ExportBackendProvider(New())
 )

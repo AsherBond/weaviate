@@ -607,7 +607,9 @@ type Export struct {
 	DefaultBucket *runtime.DynamicValue[string] `json:"default_bucket" yaml:"default_bucket"`
 
 	// DefaultPath is the default path prefix within the bucket or filesystem for exports.
-	// Defaults to empty string (no prefix).
+	// Defaults to empty string (no prefix). Each backup module provides a separate
+	// export backend that does not inherit the backup path (e.g. BACKUP_S3_PATH),
+	// so this value is used directly.
 	// Env: EXPORT_DEFAULT_PATH, runtime config: export_default_path.
 	DefaultPath *runtime.DynamicValue[string] `json:"default_path" yaml:"default_path"`
 }

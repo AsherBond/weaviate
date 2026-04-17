@@ -298,23 +298,34 @@ func TestExportBackend_WithExportClient(t *testing.T) {
 	assert.True(t, eb.IsExternal())
 }
 
-func TestExportBackend_WithoutExportClient(t *testing.T) {
+func TestExportBackend_AlwaysReturnsExportClient(t *testing.T) {
 	setEnvVars(t, map[string]string{
 		"AWS_ACCESS_KEY_ID":     "test-key",
 		"AWS_SECRET_ACCESS_KEY": "test-secret",
 	})
 
-	backupCfg := newConfig("s3.amazonaws.com", "my-bucket", "", true)
+	backupCfg := newConfig("s3.amazonaws.com", "my-bucket", "backup-path", true)
 	backupClient, err := newClient(backupCfg, nil, "/tmp")
 	require.NoError(t, err)
 
+	exportCfg := newConfig("s3.amazonaws.com", "my-bucket", "", true)
+	exportClient, err := newClient(exportCfg, nil, "/tmp")
+	require.NoError(t, err)
+
 	m := &Module{
-		s3Client: backupClient,
+		s3Client:     backupClient,
+		exportClient: exportClient,
 	}
 
 	eb := m.ExportBackend()
-	// Should return the module itself when no export client is configured
-	assert.Equal(t, m, eb)
+	// Should return the export client, not the module itself
+	assert.NotEqual(t, m, eb)
+	assert.Equal(t, Name, eb.Name())
+	assert.True(t, eb.IsExternal())
+
+	// Export backend must NOT inherit the backup path
+	exportBackend := eb.(*exportS3Backend)
+	assert.Empty(t, exportBackend.config.BackupPath, "export backend should have empty BackupPath")
 }
 
 func TestBucketAndPath(t *testing.T) {
