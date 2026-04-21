@@ -104,6 +104,9 @@ func newCronsObjectsTTL(serverShutdownCtx context.Context,
 func (c *cronsObjectsTTL) Init(cr *gocron.Cron, clusterService *cluster.Service,
 	coordinator *objectttl.Coordinator,
 ) error {
+	if coordinator == nil {
+		return fmt.Errorf("objects ttl coordinator is nil")
+	}
 	errors.GoWrapper(func() {
 		jobName := "trigger_objects_ttl_deletion"
 		jobLogger := c.logger.WithField("job", jobName)
