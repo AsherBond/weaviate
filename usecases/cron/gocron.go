@@ -175,14 +175,14 @@ func (c *cronsObjectsTTL) createJob(ctx context.Context, jobLogger logrus.FieldL
 		var err error
 		started := time.Now()
 
-		jobLogger.Info("trigger ttl deletion started")
+		jobLogger.Debug("trigger ttl deletion started")
 		defer func() {
 			jobLogger := jobLogger.WithField("took", time.Since(started))
 			if err != nil {
 				jobLogger.WithError(err).Error("trigger ttl deletion failed")
 				return
 			}
-			jobLogger.Info("trigger ttl deletion finished")
+			jobLogger.Debug("trigger ttl deletion finished")
 		}()
 
 		err = coordinator.Start(ctx, false, started, started)
