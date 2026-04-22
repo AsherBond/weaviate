@@ -85,6 +85,7 @@ jobs:
           project_key: ${{ env.PROJECT_KEY }}
           fetch-depth: 0
           path: "."
+          exclude_paths: "grpc/generated/*,adapters/handlers/rest/operations/*,adapters/handlers/rest/embedded_spec.go,client/*,entities/models/*,**/mock_*.go"
 
       - name: Check security scan results
         run: |
@@ -226,6 +227,7 @@ jobs:
           project_key: ${{ env.PROJECT_KEY }}
           fetch-depth: 0
           path: "."
+          exclude_paths: "grpc/generated/*,adapters/handlers/rest/operations/*,adapters/handlers/rest/embedded_spec.go,client/*,entities/models/*,**/mock_*.go"
 
       - name: Check security scan results
         run: |
