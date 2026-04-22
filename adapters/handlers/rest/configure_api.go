@@ -379,7 +379,10 @@ func MakeAppState(ctx, serverShutdownCtx context.Context, options *swag.CommandL
 	// TODO: configure http transport for efficient intra-cluster comm
 	remoteIndexClient := clients.NewRemoteIndex(appState.ClusterHttpClient)
 	remoteNodesClient := clients.NewRemoteNode(appState.ClusterHttpClient)
-	replicationClient := clients.NewReplicationClient(appState.ClusterHttpClient)
+	replicationClient, err := clients.NewReplicationClient(appState.ClusterHttpClient)
+	if err != nil {
+		appState.Logger.WithField("action", "startup").Fatalf("failed to create replication client: %v", err)
+	}
 	repo, err := db.New(appState.Logger, appState.Cluster.LocalName(), db.Config{
 		ServerVersion:                       config.ServerVersion,
 		GitHash:                             build.Revision,
@@ -763,6 +766,9 @@ func MakeAppState(ctx, serverShutdownCtx context.Context, options *swag.CommandL
 		}, appState.Logger)
 	}
 
+	appState.ObjectTTLCoordinator = objectttl.NewCoordinator(appState.ClusterService.SchemaReader(), appState.SchemaManager, appState.DB,
+		appState.Logger, appState.ClusterHttpClient, appState.Cluster, appState.ObjectTTLLocalStatus)
+
 	enterrors.GoWrapper(func() {
 		l := appState.Logger.WithField("action", "startup")
 		if err := metaStoreReady.waitForMetaStore(); err != nil {
@@ -770,7 +776,9 @@ func MakeAppState(ctx, serverShutdownCtx context.Context, options *swag.CommandL
 			return
 		}
 		l.Info("Configuring crons")
-		appState.Crons.Init(appState.ClusterService, appState.ObjectTTLCoordinator)
+		if err := appState.Crons.Init(appState.ClusterService, appState.ObjectTTLCoordinator); err != nil {
+			l.WithError(err).Fatal("Configuring crons failed")
+		}
 	}, appState.Logger)
 
 	configureServer = makeConfigureServer(appState)
@@ -958,8 +966,6 @@ func configureAPI(api *operations.WeaviateAPI) http.Handler {
 
 	remoteDbUsers := clients.NewRemoteUser(appState.ClusterHttpClient, appState.Cluster)
 	db_users.SetupHandlers(api, appState.ClusterService.Raft, appState.Authorizer, appState.ServerConfig.Config.Authentication, appState.ServerConfig.Config.Authorization, remoteDbUsers, appState.SchemaManager, appState.Logger)
-	appState.ObjectTTLCoordinator = objectttl.NewCoordinator(appState.ClusterService.SchemaReader(), appState.SchemaManager, appState.DB,
-		appState.Logger, appState.ClusterHttpClient, appState.Cluster, appState.ObjectTTLLocalStatus)
 
 	setupSchemaHandlers(api, appState.SchemaManager, appState.Metrics, appState.Logger)
 	setupAliasesHandlers(api, appState.SchemaManager, appState.Metrics, appState.Logger)
