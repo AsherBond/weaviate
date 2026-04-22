@@ -203,4 +203,4 @@ print "No hidden Unicode characters detected.\n";
 exit 0;
 '
 
-get_diff "$@" | perl -CS -e "$PERL_SCRIPT"
+get_diff "$@" | perl -CSD -e "$PERL_SCRIPT"
