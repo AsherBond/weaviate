@@ -128,6 +128,7 @@ func (h *HFresh) distToNode(ctx context.Context, node uint64, vecB []float32) (f
 		return 0, fmt.Errorf("HFRESH distancer is not yet initialized")
 	}
 
+	vecA = h.normalizeVec(vecA)
 	return h.distancer.distancer.SingleDist(vecA, vecB)
 }
 
