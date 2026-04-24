@@ -58,6 +58,12 @@ func (o *GetNamespaceReader) ReadResponse(response runtime.ClientResponse, consu
 			return nil, err
 		}
 		return nil, result
+	case 422:
+		result := NewGetNamespaceUnprocessableEntity()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
 	case 500:
 		result := NewGetNamespaceInternalServerError()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -318,6 +324,74 @@ func (o *GetNamespaceNotFound) GetPayload() *models.ErrorResponse {
 }
 
 func (o *GetNamespaceNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	o.Payload = new(models.ErrorResponse)
+
+	// response payload
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
+}
+
+// NewGetNamespaceUnprocessableEntity creates a GetNamespaceUnprocessableEntity with default headers values
+func NewGetNamespaceUnprocessableEntity() *GetNamespaceUnprocessableEntity {
+	return &GetNamespaceUnprocessableEntity{}
+}
+
+/*
+GetNamespaceUnprocessableEntity describes a response with status code 422, with default header values.
+
+The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+*/
+type GetNamespaceUnprocessableEntity struct {
+	Payload *models.ErrorResponse
+}
+
+// IsSuccess returns true when this get namespace unprocessable entity response has a 2xx status code
+func (o *GetNamespaceUnprocessableEntity) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this get namespace unprocessable entity response has a 3xx status code
+func (o *GetNamespaceUnprocessableEntity) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this get namespace unprocessable entity response has a 4xx status code
+func (o *GetNamespaceUnprocessableEntity) IsClientError() bool {
+	return true
+}
+
+// IsServerError returns true when this get namespace unprocessable entity response has a 5xx status code
+func (o *GetNamespaceUnprocessableEntity) IsServerError() bool {
+	return false
+}
+
+// IsCode returns true when this get namespace unprocessable entity response a status code equal to that given
+func (o *GetNamespaceUnprocessableEntity) IsCode(code int) bool {
+	return code == 422
+}
+
+// Code gets the status code for the get namespace unprocessable entity response
+func (o *GetNamespaceUnprocessableEntity) Code() int {
+	return 422
+}
+
+func (o *GetNamespaceUnprocessableEntity) Error() string {
+	return fmt.Sprintf("[GET /namespaces/{namespace_id}][%d] getNamespaceUnprocessableEntity  %+v", 422, o.Payload)
+}
+
+func (o *GetNamespaceUnprocessableEntity) String() string {
+	return fmt.Sprintf("[GET /namespaces/{namespace_id}][%d] getNamespaceUnprocessableEntity  %+v", 422, o.Payload)
+}
+
+func (o *GetNamespaceUnprocessableEntity) GetPayload() *models.ErrorResponse {
+	return o.Payload
+}
+
+func (o *GetNamespaceUnprocessableEntity) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	o.Payload = new(models.ErrorResponse)
 

@@ -46,6 +46,12 @@ func (o *ListNamespacesReader) ReadResponse(response runtime.ClientResponse, con
 			return nil, err
 		}
 		return nil, result
+	case 422:
+		result := NewListNamespacesUnprocessableEntity()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
 	case 500:
 		result := NewListNamespacesInternalServerError()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -175,6 +181,74 @@ func (o *ListNamespacesUnauthorized) String() string {
 }
 
 func (o *ListNamespacesUnauthorized) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	return nil
+}
+
+// NewListNamespacesUnprocessableEntity creates a ListNamespacesUnprocessableEntity with default headers values
+func NewListNamespacesUnprocessableEntity() *ListNamespacesUnprocessableEntity {
+	return &ListNamespacesUnprocessableEntity{}
+}
+
+/*
+ListNamespacesUnprocessableEntity describes a response with status code 422, with default header values.
+
+The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+*/
+type ListNamespacesUnprocessableEntity struct {
+	Payload *models.ErrorResponse
+}
+
+// IsSuccess returns true when this list namespaces unprocessable entity response has a 2xx status code
+func (o *ListNamespacesUnprocessableEntity) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this list namespaces unprocessable entity response has a 3xx status code
+func (o *ListNamespacesUnprocessableEntity) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this list namespaces unprocessable entity response has a 4xx status code
+func (o *ListNamespacesUnprocessableEntity) IsClientError() bool {
+	return true
+}
+
+// IsServerError returns true when this list namespaces unprocessable entity response has a 5xx status code
+func (o *ListNamespacesUnprocessableEntity) IsServerError() bool {
+	return false
+}
+
+// IsCode returns true when this list namespaces unprocessable entity response a status code equal to that given
+func (o *ListNamespacesUnprocessableEntity) IsCode(code int) bool {
+	return code == 422
+}
+
+// Code gets the status code for the list namespaces unprocessable entity response
+func (o *ListNamespacesUnprocessableEntity) Code() int {
+	return 422
+}
+
+func (o *ListNamespacesUnprocessableEntity) Error() string {
+	return fmt.Sprintf("[GET /namespaces][%d] listNamespacesUnprocessableEntity  %+v", 422, o.Payload)
+}
+
+func (o *ListNamespacesUnprocessableEntity) String() string {
+	return fmt.Sprintf("[GET /namespaces][%d] listNamespacesUnprocessableEntity  %+v", 422, o.Payload)
+}
+
+func (o *ListNamespacesUnprocessableEntity) GetPayload() *models.ErrorResponse {
+	return o.Payload
+}
+
+func (o *ListNamespacesUnprocessableEntity) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	o.Payload = new(models.ErrorResponse)
+
+	// response payload
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
+		return err
+	}
 
 	return nil
 }

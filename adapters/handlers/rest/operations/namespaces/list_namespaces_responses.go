@@ -97,6 +97,51 @@ func (o *ListNamespacesUnauthorized) WriteResponse(rw http.ResponseWriter, produ
 	rw.WriteHeader(401)
 }
 
+// ListNamespacesUnprocessableEntityCode is the HTTP code returned for type ListNamespacesUnprocessableEntity
+const ListNamespacesUnprocessableEntityCode int = 422
+
+/*
+ListNamespacesUnprocessableEntity The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+
+swagger:response listNamespacesUnprocessableEntity
+*/
+type ListNamespacesUnprocessableEntity struct {
+
+	/*
+	  In: Body
+	*/
+	Payload *models.ErrorResponse `json:"body,omitempty"`
+}
+
+// NewListNamespacesUnprocessableEntity creates ListNamespacesUnprocessableEntity with default headers values
+func NewListNamespacesUnprocessableEntity() *ListNamespacesUnprocessableEntity {
+
+	return &ListNamespacesUnprocessableEntity{}
+}
+
+// WithPayload adds the payload to the list namespaces unprocessable entity response
+func (o *ListNamespacesUnprocessableEntity) WithPayload(payload *models.ErrorResponse) *ListNamespacesUnprocessableEntity {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the list namespaces unprocessable entity response
+func (o *ListNamespacesUnprocessableEntity) SetPayload(payload *models.ErrorResponse) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *ListNamespacesUnprocessableEntity) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(422)
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
+}
+
 // ListNamespacesInternalServerErrorCode is the HTTP code returned for type ListNamespacesInternalServerError
 const ListNamespacesInternalServerErrorCode int = 500
 

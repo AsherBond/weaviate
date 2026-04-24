@@ -2850,6 +2850,12 @@ func init() {
           "401": {
             "description": "Unauthorized or invalid credentials."
           },
+          "422": {
+            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
           "500": {
             "description": "An error has occurred while trying to fulfill the request. Most likely the ErrorResponse will contain more information about the error.",
             "schema": {
@@ -2894,6 +2900,12 @@ func init() {
           },
           "404": {
             "description": "Not Found - Namespace does not exist.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "422": {
+            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
@@ -2989,6 +3001,12 @@ func init() {
           },
           "404": {
             "description": "Not Found - Namespace does not exist.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "422": {
+            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
@@ -13134,6 +13152,12 @@ func init() {
           "401": {
             "description": "Unauthorized or invalid credentials."
           },
+          "422": {
+            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
           "500": {
             "description": "An error has occurred while trying to fulfill the request. Most likely the ErrorResponse will contain more information about the error.",
             "schema": {
@@ -13178,6 +13202,12 @@ func init() {
           },
           "404": {
             "description": "Not Found - Namespace does not exist.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "422": {
+            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
@@ -13273,6 +13303,12 @@ func init() {
           },
           "404": {
             "description": "Not Found - Namespace does not exist.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "422": {
+            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }

@@ -58,6 +58,12 @@ func (o *DeleteNamespaceReader) ReadResponse(response runtime.ClientResponse, co
 			return nil, err
 		}
 		return nil, result
+	case 422:
+		result := NewDeleteNamespaceUnprocessableEntity()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
 	case 500:
 		result := NewDeleteNamespaceInternalServerError()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -306,6 +312,74 @@ func (o *DeleteNamespaceNotFound) GetPayload() *models.ErrorResponse {
 }
 
 func (o *DeleteNamespaceNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	o.Payload = new(models.ErrorResponse)
+
+	// response payload
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
+}
+
+// NewDeleteNamespaceUnprocessableEntity creates a DeleteNamespaceUnprocessableEntity with default headers values
+func NewDeleteNamespaceUnprocessableEntity() *DeleteNamespaceUnprocessableEntity {
+	return &DeleteNamespaceUnprocessableEntity{}
+}
+
+/*
+DeleteNamespaceUnprocessableEntity describes a response with status code 422, with default header values.
+
+The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+*/
+type DeleteNamespaceUnprocessableEntity struct {
+	Payload *models.ErrorResponse
+}
+
+// IsSuccess returns true when this delete namespace unprocessable entity response has a 2xx status code
+func (o *DeleteNamespaceUnprocessableEntity) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this delete namespace unprocessable entity response has a 3xx status code
+func (o *DeleteNamespaceUnprocessableEntity) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this delete namespace unprocessable entity response has a 4xx status code
+func (o *DeleteNamespaceUnprocessableEntity) IsClientError() bool {
+	return true
+}
+
+// IsServerError returns true when this delete namespace unprocessable entity response has a 5xx status code
+func (o *DeleteNamespaceUnprocessableEntity) IsServerError() bool {
+	return false
+}
+
+// IsCode returns true when this delete namespace unprocessable entity response a status code equal to that given
+func (o *DeleteNamespaceUnprocessableEntity) IsCode(code int) bool {
+	return code == 422
+}
+
+// Code gets the status code for the delete namespace unprocessable entity response
+func (o *DeleteNamespaceUnprocessableEntity) Code() int {
+	return 422
+}
+
+func (o *DeleteNamespaceUnprocessableEntity) Error() string {
+	return fmt.Sprintf("[DELETE /namespaces/{namespace_id}][%d] deleteNamespaceUnprocessableEntity  %+v", 422, o.Payload)
+}
+
+func (o *DeleteNamespaceUnprocessableEntity) String() string {
+	return fmt.Sprintf("[DELETE /namespaces/{namespace_id}][%d] deleteNamespaceUnprocessableEntity  %+v", 422, o.Payload)
+}
+
+func (o *DeleteNamespaceUnprocessableEntity) GetPayload() *models.ErrorResponse {
+	return o.Payload
+}
+
+func (o *DeleteNamespaceUnprocessableEntity) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	o.Payload = new(models.ErrorResponse)
 

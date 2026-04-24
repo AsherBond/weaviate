@@ -17,6 +17,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-openapi/runtime/middleware"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -66,6 +67,7 @@ func newHandler(t *testing.T) (*namespaceHandler, *authorization.MockAuthorizer,
 	raft := &mockRaft{}
 	t.Cleanup(func() { raft.AssertExpectations(t) })
 	return &namespaceHandler{
+		enabled:    true,
 		authorizer: authorizer,
 		raft:       raft,
 		logger:     logrus.New(),
@@ -349,4 +351,56 @@ func TestListNamespaces_FilterError(t *testing.T) {
 	res := h.listNamespaces(nsops.ListNamespacesParams{HTTPRequest: req}, principal)
 	_, ok := res.(*nsops.ListNamespacesInternalServerError)
 	assert.True(t, ok, "expected 500, got %T", res)
+}
+
+// -----------------------------------------------------------------------------
+// namespaces feature flag
+// -----------------------------------------------------------------------------
+
+// TestHandlers_Disabled verifies that every endpoint short-circuits with 422
+// when the namespaces feature flag is off, without calling authz or RAFT.
+func TestHandlers_Disabled(t *testing.T) {
+	principal := &models.Principal{}
+	cases := []struct {
+		name   string
+		invoke func(h *namespaceHandler) middleware.Responder
+		want   any
+	}{
+		{
+			name: "create",
+			invoke: func(h *namespaceHandler) middleware.Responder {
+				return h.createNamespace(nsops.CreateNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
+			},
+			want: &nsops.CreateNamespaceUnprocessableEntity{},
+		},
+		{
+			name: "get",
+			invoke: func(h *namespaceHandler) middleware.Responder {
+				return h.getNamespace(nsops.GetNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
+			},
+			want: &nsops.GetNamespaceUnprocessableEntity{},
+		},
+		{
+			name: "delete",
+			invoke: func(h *namespaceHandler) middleware.Responder {
+				return h.deleteNamespace(nsops.DeleteNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
+			},
+			want: &nsops.DeleteNamespaceUnprocessableEntity{},
+		},
+		{
+			name: "list",
+			invoke: func(h *namespaceHandler) middleware.Responder {
+				return h.listNamespaces(nsops.ListNamespacesParams{HTTPRequest: req}, principal)
+			},
+			want: &nsops.ListNamespacesUnprocessableEntity{},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, _, _ := newHandler(t)
+			h.enabled = false
+			res := tc.invoke(h)
+			assert.IsType(t, tc.want, res, "expected %T, got %T", tc.want, res)
+		})
+	}
 }

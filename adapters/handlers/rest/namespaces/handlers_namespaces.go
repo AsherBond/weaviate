@@ -35,10 +35,16 @@ type NamespaceRaftGetter interface {
 }
 
 type namespaceHandler struct {
+	enabled    bool
 	authorizer authorization.Authorizer
 	raft       NamespaceRaftGetter
 	logger     logrus.FieldLogger
 }
+
+// errNamespacesDisabled is returned by every handler when the namespaces
+// feature flag is off, so clients see a consistent message regardless of
+// which endpoint they hit.
+var errNamespacesDisabled = fmt.Errorf("namespaces are not enabled")
 
 // Name validation contract mirrors the one enforced on the apply side
 // (cluster/namespaces). Kept local so handler-level rejections map to 422
@@ -66,12 +72,14 @@ var (
 // API surface. Called from adapters/handlers/rest/configure_api.go next to the
 // other SetupHandlers invocations.
 func SetupHandlers(
+	enabled bool,
 	api *operations.WeaviateAPI,
 	raft NamespaceRaftGetter,
 	authorizer authorization.Authorizer,
 	logger logrus.FieldLogger,
 ) {
 	h := &namespaceHandler{
+		enabled:    enabled,
 		authorizer: authorizer,
 		raft:       raft,
 		logger:     logger,
@@ -107,6 +115,10 @@ func (h *namespaceHandler) namespaceExists(name string) (bool, error) {
 }
 
 func (h *namespaceHandler) createNamespace(params nsops.CreateNamespaceParams, principal *models.Principal) middleware.Responder {
+	if !h.enabled {
+		return nsops.NewCreateNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(errNamespacesDisabled))
+	}
+
 	ctx := params.HTTPRequest.Context()
 	name := params.NamespaceID
 
@@ -137,6 +149,10 @@ func (h *namespaceHandler) createNamespace(params nsops.CreateNamespaceParams, p
 }
 
 func (h *namespaceHandler) getNamespace(params nsops.GetNamespaceParams, principal *models.Principal) middleware.Responder {
+	if !h.enabled {
+		return nsops.NewGetNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(errNamespacesDisabled))
+	}
+
 	ctx := params.HTTPRequest.Context()
 	name := params.NamespaceID
 
@@ -158,6 +174,10 @@ func (h *namespaceHandler) getNamespace(params nsops.GetNamespaceParams, princip
 }
 
 func (h *namespaceHandler) deleteNamespace(params nsops.DeleteNamespaceParams, principal *models.Principal) middleware.Responder {
+	if !h.enabled {
+		return nsops.NewDeleteNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(errNamespacesDisabled))
+	}
+
 	ctx := params.HTTPRequest.Context()
 	name := params.NamespaceID
 
@@ -193,6 +213,10 @@ func (h *namespaceHandler) deleteNamespace(params nsops.DeleteNamespaceParams, p
 // manage_namespaces permission see an empty list, matching the listRoles
 // convention so RBAC UIs can render a consistent empty state.
 func (h *namespaceHandler) listNamespaces(params nsops.ListNamespacesParams, principal *models.Principal) middleware.Responder {
+	if !h.enabled {
+		return nsops.NewListNamespacesUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(errNamespacesDisabled))
+	}
+
 	ctx := params.HTTPRequest.Context()
 
 	all, err := h.raft.GetNamespaces()

@@ -184,6 +184,51 @@ func (o *GetNamespaceNotFound) WriteResponse(rw http.ResponseWriter, producer ru
 	}
 }
 
+// GetNamespaceUnprocessableEntityCode is the HTTP code returned for type GetNamespaceUnprocessableEntity
+const GetNamespaceUnprocessableEntityCode int = 422
+
+/*
+GetNamespaceUnprocessableEntity The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+
+swagger:response getNamespaceUnprocessableEntity
+*/
+type GetNamespaceUnprocessableEntity struct {
+
+	/*
+	  In: Body
+	*/
+	Payload *models.ErrorResponse `json:"body,omitempty"`
+}
+
+// NewGetNamespaceUnprocessableEntity creates GetNamespaceUnprocessableEntity with default headers values
+func NewGetNamespaceUnprocessableEntity() *GetNamespaceUnprocessableEntity {
+
+	return &GetNamespaceUnprocessableEntity{}
+}
+
+// WithPayload adds the payload to the get namespace unprocessable entity response
+func (o *GetNamespaceUnprocessableEntity) WithPayload(payload *models.ErrorResponse) *GetNamespaceUnprocessableEntity {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the get namespace unprocessable entity response
+func (o *GetNamespaceUnprocessableEntity) SetPayload(payload *models.ErrorResponse) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *GetNamespaceUnprocessableEntity) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(422)
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
+}
+
 // GetNamespaceInternalServerErrorCode is the HTTP code returned for type GetNamespaceInternalServerError
 const GetNamespaceInternalServerErrorCode int = 500
 

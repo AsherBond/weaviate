@@ -164,6 +164,51 @@ func (o *DeleteNamespaceNotFound) WriteResponse(rw http.ResponseWriter, producer
 	}
 }
 
+// DeleteNamespaceUnprocessableEntityCode is the HTTP code returned for type DeleteNamespaceUnprocessableEntity
+const DeleteNamespaceUnprocessableEntityCode int = 422
+
+/*
+DeleteNamespaceUnprocessableEntity The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+
+swagger:response deleteNamespaceUnprocessableEntity
+*/
+type DeleteNamespaceUnprocessableEntity struct {
+
+	/*
+	  In: Body
+	*/
+	Payload *models.ErrorResponse `json:"body,omitempty"`
+}
+
+// NewDeleteNamespaceUnprocessableEntity creates DeleteNamespaceUnprocessableEntity with default headers values
+func NewDeleteNamespaceUnprocessableEntity() *DeleteNamespaceUnprocessableEntity {
+
+	return &DeleteNamespaceUnprocessableEntity{}
+}
+
+// WithPayload adds the payload to the delete namespace unprocessable entity response
+func (o *DeleteNamespaceUnprocessableEntity) WithPayload(payload *models.ErrorResponse) *DeleteNamespaceUnprocessableEntity {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the delete namespace unprocessable entity response
+func (o *DeleteNamespaceUnprocessableEntity) SetPayload(payload *models.ErrorResponse) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *DeleteNamespaceUnprocessableEntity) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(422)
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
+}
+
 // DeleteNamespaceInternalServerErrorCode is the HTTP code returned for type DeleteNamespaceInternalServerError
 const DeleteNamespaceInternalServerErrorCode int = 500
 
