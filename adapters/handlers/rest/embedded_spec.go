@@ -2850,8 +2850,14 @@ func init() {
           "401": {
             "description": "Unauthorized or invalid credentials."
           },
+          "404": {
+            "description": "Not Found - The namespaces feature is not enabled on this cluster.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
           "422": {
-            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
+            "description": "The request syntax is correct, but the server couldn't process it.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
@@ -2899,13 +2905,13 @@ func init() {
             }
           },
           "404": {
-            "description": "Not Found - Namespace does not exist.",
+            "description": "Not Found - Namespace does not exist, or the namespaces feature is not enabled on this cluster.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
           },
           "422": {
-            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
+            "description": "The request syntax is correct, but the server couldn't process it due to semantic issues (e.g. invalid name format or reserved name).",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
@@ -2946,6 +2952,12 @@ func init() {
           },
           "403": {
             "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "404": {
+            "description": "Not Found - The namespaces feature is not enabled on this cluster.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
@@ -3000,13 +3012,13 @@ func init() {
             }
           },
           "404": {
-            "description": "Not Found - Namespace does not exist.",
+            "description": "Not Found - Namespace does not exist, or the namespaces feature is not enabled on this cluster.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
           },
           "422": {
-            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
+            "description": "The request syntax is correct, but the server couldn't process it due to semantic issues (e.g. invalid name format or reserved name).",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
@@ -13152,8 +13164,14 @@ func init() {
           "401": {
             "description": "Unauthorized or invalid credentials."
           },
+          "404": {
+            "description": "Not Found - The namespaces feature is not enabled on this cluster.",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
           "422": {
-            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
+            "description": "The request syntax is correct, but the server couldn't process it.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
@@ -13201,13 +13219,13 @@ func init() {
             }
           },
           "404": {
-            "description": "Not Found - Namespace does not exist.",
+            "description": "Not Found - Namespace does not exist, or the namespaces feature is not enabled on this cluster.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
           },
           "422": {
-            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
+            "description": "The request syntax is correct, but the server couldn't process it due to semantic issues (e.g. invalid name format or reserved name).",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
@@ -13248,6 +13266,12 @@ func init() {
           },
           "403": {
             "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "404": {
+            "description": "Not Found - The namespaces feature is not enabled on this cluster.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
@@ -13302,13 +13326,13 @@ func init() {
             }
           },
           "404": {
-            "description": "Not Found - Namespace does not exist.",
+            "description": "Not Found - Namespace does not exist, or the namespaces feature is not enabled on this cluster.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }
           },
           "422": {
-            "description": "The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).",
+            "description": "The request syntax is correct, but the server couldn't process it due to semantic issues (e.g. invalid name format or reserved name).",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
             }

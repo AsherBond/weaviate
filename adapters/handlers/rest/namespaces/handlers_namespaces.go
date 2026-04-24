@@ -12,15 +12,19 @@
 package namespaces
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
-	"regexp"
+	"net/http"
 
+	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sirupsen/logrus"
 
 	cerrors "github.com/weaviate/weaviate/adapters/handlers/rest/errors"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 	nsops "github.com/weaviate/weaviate/adapters/handlers/rest/operations/namespaces"
+	clusternamespaces "github.com/weaviate/weaviate/cluster/namespaces"
 	cmd "github.com/weaviate/weaviate/cluster/proto/api"
 	"github.com/weaviate/weaviate/entities/models"
 	"github.com/weaviate/weaviate/usecases/auth/authorization"
@@ -46,28 +50,6 @@ type namespaceHandler struct {
 // which endpoint they hit.
 var errNamespacesDisabled = fmt.Errorf("namespaces are not enabled")
 
-// Name validation contract mirrors the one enforced on the apply side
-// (cluster/namespaces). Kept local so handler-level rejections map to 422
-// without a RAFT round-trip.
-const (
-	namespaceNameMinLength = 3
-	namespaceNameMaxLength = 36
-)
-
-var (
-	namespaceNameRegex = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
-
-	reservedNamespaceNames = map[string]struct{}{
-		"admin":    {},
-		"system":   {},
-		"default":  {},
-		"internal": {},
-		"weaviate": {},
-		"global":   {},
-		"public":   {},
-	}
-)
-
 // SetupHandlers wires the namespace handler methods into the generated REST
 // API surface. Called from adapters/handlers/rest/configure_api.go next to the
 // other SetupHandlers invocations.
@@ -91,32 +73,22 @@ func SetupHandlers(
 	api.NamespacesListNamespacesHandler = nsops.ListNamespacesHandlerFunc(h.listNamespaces)
 }
 
-func (h *namespaceHandler) validateNamespaceName(name string) error {
-	if l := len(name); l < namespaceNameMinLength || l > namespaceNameMaxLength {
-		return fmt.Errorf("namespace name %q must be %d-%d characters", name, namespaceNameMinLength, namespaceNameMaxLength)
-	}
-	if !namespaceNameRegex.MatchString(name) {
-		return fmt.Errorf("namespace name %q must start with a lowercase letter and contain only lowercase letters and digits", name)
-	}
-	if _, reserved := reservedNamespaceNames[name]; reserved {
-		return fmt.Errorf("namespace name %q is reserved", name)
-	}
-	return nil
-}
-
-// namespaceExists is a thin wrapper around GetNamespaces used by the create/
-// delete pre-checks to decide 409/404 in the handler.
-func (h *namespaceHandler) namespaceExists(name string) (bool, error) {
-	got, err := h.raft.GetNamespaces(name)
-	if err != nil {
-		return false, err
-	}
-	return len(got) > 0, nil
+// disabledResponder returns a 404 with an ErrorResponse body when the
+// namespaces feature flag is off. We use a raw ResponderFunc because the
+// generated go-swagger response types for these endpoints do not include a
+// 404 variant for create/list — and a 404 is the correct semantic for "this
+// endpoint is not available on this cluster".
+func disabledResponder() middleware.Responder {
+	return middleware.ResponderFunc(func(w http.ResponseWriter, _ runtime.Producer) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(cerrors.ErrPayloadFromSingleErr(errNamespacesDisabled))
+	})
 }
 
 func (h *namespaceHandler) createNamespace(params nsops.CreateNamespaceParams, principal *models.Principal) middleware.Responder {
 	if !h.enabled {
-		return nsops.NewCreateNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(errNamespacesDisabled))
+		return disabledResponder()
 	}
 
 	ctx := params.HTTPRequest.Context()
@@ -126,23 +98,25 @@ func (h *namespaceHandler) createNamespace(params nsops.CreateNamespaceParams, p
 		return nsops.NewCreateNamespaceForbidden().WithPayload(cerrors.ErrPayloadFromSingleErr(err))
 	}
 
-	if err := h.validateNamespaceName(name); err != nil {
+	if err := clusternamespaces.ValidateName(name); err != nil {
 		return nsops.NewCreateNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(err))
 	}
 
-	exists, err := h.namespaceExists(name)
-	if err != nil {
-		return nsops.NewCreateNamespaceInternalServerError().WithPayload(
-			cerrors.ErrPayloadFromSingleErr(fmt.Errorf("checking namespace existence: %w", err)))
-	}
-	if exists {
-		return nsops.NewCreateNamespaceConflict().WithPayload(
-			cerrors.ErrPayloadFromSingleErr(fmt.Errorf("namespace %q already exists", name)))
-	}
-
+	// No pre-check for existence: the RAFT apply layer is the single source
+	// of truth for uniqueness, so we translate its error sentinels directly.
+	// This avoids a TOCTOU where two concurrent creates both pass a pre-check
+	// and the loser would surface a misleading 500.
 	if err := h.raft.AddNamespace(cmd.Namespace{Name: name}); err != nil {
-		return nsops.NewCreateNamespaceInternalServerError().WithPayload(
-			cerrors.ErrPayloadFromSingleErr(fmt.Errorf("creating namespace: %w", err)))
+		switch {
+		case errors.Is(err, clusternamespaces.ErrAlreadyExists):
+			return nsops.NewCreateNamespaceConflict().WithPayload(
+				cerrors.ErrPayloadFromSingleErr(fmt.Errorf("namespace %q already exists", name)))
+		case errors.Is(err, clusternamespaces.ErrBadRequest):
+			return nsops.NewCreateNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(err))
+		default:
+			return nsops.NewCreateNamespaceInternalServerError().WithPayload(
+				cerrors.ErrPayloadFromSingleErr(fmt.Errorf("creating namespace: %w", err)))
+		}
 	}
 
 	return nsops.NewCreateNamespaceCreated().WithPayload(&models.Namespace{Name: name})
@@ -150,7 +124,7 @@ func (h *namespaceHandler) createNamespace(params nsops.CreateNamespaceParams, p
 
 func (h *namespaceHandler) getNamespace(params nsops.GetNamespaceParams, principal *models.Principal) middleware.Responder {
 	if !h.enabled {
-		return nsops.NewGetNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(errNamespacesDisabled))
+		return disabledResponder()
 	}
 
 	ctx := params.HTTPRequest.Context()
@@ -158,6 +132,10 @@ func (h *namespaceHandler) getNamespace(params nsops.GetNamespaceParams, princip
 
 	if err := h.authorizer.Authorize(ctx, principal, authorization.READ, authorization.Namespaces(name)...); err != nil {
 		return nsops.NewGetNamespaceForbidden().WithPayload(cerrors.ErrPayloadFromSingleErr(err))
+	}
+
+	if err := clusternamespaces.ValidateName(name); err != nil {
+		return nsops.NewGetNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(err))
 	}
 
 	got, err := h.raft.GetNamespaces(name)
@@ -175,7 +153,7 @@ func (h *namespaceHandler) getNamespace(params nsops.GetNamespaceParams, princip
 
 func (h *namespaceHandler) deleteNamespace(params nsops.DeleteNamespaceParams, principal *models.Principal) middleware.Responder {
 	if !h.enabled {
-		return nsops.NewDeleteNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(errNamespacesDisabled))
+		return disabledResponder()
 	}
 
 	ctx := params.HTTPRequest.Context()
@@ -185,25 +163,24 @@ func (h *namespaceHandler) deleteNamespace(params nsops.DeleteNamespaceParams, p
 		return nsops.NewDeleteNamespaceForbidden().WithPayload(cerrors.ErrPayloadFromSingleErr(err))
 	}
 
-	// Pre-check for 404. The RAFT delete also errors on missing entries, but
-	// the REST contract is "404 on not found"; pre-checking here keeps the
-	// status decision in the handler and mirrors the 409 pre-check in
-	// createNamespace. A concurrent delete between the pre-check and the
-	// actual DeleteNamespace could surface as 500 instead of 204 for the
-	// loser — acceptable (same observable outcome: the namespace is gone).
-	exists, err := h.namespaceExists(name)
-	if err != nil {
-		return nsops.NewDeleteNamespaceInternalServerError().WithPayload(
-			cerrors.ErrPayloadFromSingleErr(fmt.Errorf("checking namespace existence: %w", err)))
-	}
-	if !exists {
-		return nsops.NewDeleteNamespaceNotFound().WithPayload(
-			cerrors.ErrPayloadFromSingleErr(fmt.Errorf("namespace %q not found", name)))
+	if err := clusternamespaces.ValidateName(name); err != nil {
+		return nsops.NewDeleteNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(err))
 	}
 
+	// No pre-check for existence: the RAFT apply layer returns ErrNotFound
+	// for missing entries, so we translate directly. Avoids a TOCTOU where
+	// two concurrent deletes would both see the entry and only one succeeds.
 	if err := h.raft.DeleteNamespace(name); err != nil {
-		return nsops.NewDeleteNamespaceInternalServerError().WithPayload(
-			cerrors.ErrPayloadFromSingleErr(fmt.Errorf("deleting namespace: %w", err)))
+		switch {
+		case errors.Is(err, clusternamespaces.ErrNotFound):
+			return nsops.NewDeleteNamespaceNotFound().WithPayload(
+				cerrors.ErrPayloadFromSingleErr(fmt.Errorf("namespace %q not found", name)))
+		case errors.Is(err, clusternamespaces.ErrBadRequest):
+			return nsops.NewDeleteNamespaceUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(err))
+		default:
+			return nsops.NewDeleteNamespaceInternalServerError().WithPayload(
+				cerrors.ErrPayloadFromSingleErr(fmt.Errorf("deleting namespace: %w", err)))
+		}
 	}
 
 	return nsops.NewDeleteNamespaceNoContent()
@@ -214,7 +191,7 @@ func (h *namespaceHandler) deleteNamespace(params nsops.DeleteNamespaceParams, p
 // convention so RBAC UIs can render a consistent empty state.
 func (h *namespaceHandler) listNamespaces(params nsops.ListNamespacesParams, principal *models.Principal) middleware.Responder {
 	if !h.enabled {
-		return nsops.NewListNamespacesUnprocessableEntity().WithPayload(cerrors.ErrPayloadFromSingleErr(errNamespacesDisabled))
+		return disabledResponder()
 	}
 
 	ctx := params.HTTPRequest.Context()

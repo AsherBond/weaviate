@@ -46,6 +46,12 @@ func (o *ListNamespacesReader) ReadResponse(response runtime.ClientResponse, con
 			return nil, err
 		}
 		return nil, result
+	case 404:
+		result := NewListNamespacesNotFound()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
 	case 422:
 		result := NewListNamespacesUnprocessableEntity()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -185,6 +191,74 @@ func (o *ListNamespacesUnauthorized) readResponse(response runtime.ClientRespons
 	return nil
 }
 
+// NewListNamespacesNotFound creates a ListNamespacesNotFound with default headers values
+func NewListNamespacesNotFound() *ListNamespacesNotFound {
+	return &ListNamespacesNotFound{}
+}
+
+/*
+ListNamespacesNotFound describes a response with status code 404, with default header values.
+
+Not Found - The namespaces feature is not enabled on this cluster.
+*/
+type ListNamespacesNotFound struct {
+	Payload *models.ErrorResponse
+}
+
+// IsSuccess returns true when this list namespaces not found response has a 2xx status code
+func (o *ListNamespacesNotFound) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this list namespaces not found response has a 3xx status code
+func (o *ListNamespacesNotFound) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this list namespaces not found response has a 4xx status code
+func (o *ListNamespacesNotFound) IsClientError() bool {
+	return true
+}
+
+// IsServerError returns true when this list namespaces not found response has a 5xx status code
+func (o *ListNamespacesNotFound) IsServerError() bool {
+	return false
+}
+
+// IsCode returns true when this list namespaces not found response a status code equal to that given
+func (o *ListNamespacesNotFound) IsCode(code int) bool {
+	return code == 404
+}
+
+// Code gets the status code for the list namespaces not found response
+func (o *ListNamespacesNotFound) Code() int {
+	return 404
+}
+
+func (o *ListNamespacesNotFound) Error() string {
+	return fmt.Sprintf("[GET /namespaces][%d] listNamespacesNotFound  %+v", 404, o.Payload)
+}
+
+func (o *ListNamespacesNotFound) String() string {
+	return fmt.Sprintf("[GET /namespaces][%d] listNamespacesNotFound  %+v", 404, o.Payload)
+}
+
+func (o *ListNamespacesNotFound) GetPayload() *models.ErrorResponse {
+	return o.Payload
+}
+
+func (o *ListNamespacesNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	o.Payload = new(models.ErrorResponse)
+
+	// response payload
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
+}
+
 // NewListNamespacesUnprocessableEntity creates a ListNamespacesUnprocessableEntity with default headers values
 func NewListNamespacesUnprocessableEntity() *ListNamespacesUnprocessableEntity {
 	return &ListNamespacesUnprocessableEntity{}
@@ -193,7 +267,7 @@ func NewListNamespacesUnprocessableEntity() *ListNamespacesUnprocessableEntity {
 /*
 ListNamespacesUnprocessableEntity describes a response with status code 422, with default header values.
 
-The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+The request syntax is correct, but the server couldn't process it.
 */
 type ListNamespacesUnprocessableEntity struct {
 	Payload *models.ErrorResponse

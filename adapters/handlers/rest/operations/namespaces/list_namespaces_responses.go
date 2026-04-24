@@ -97,11 +97,56 @@ func (o *ListNamespacesUnauthorized) WriteResponse(rw http.ResponseWriter, produ
 	rw.WriteHeader(401)
 }
 
+// ListNamespacesNotFoundCode is the HTTP code returned for type ListNamespacesNotFound
+const ListNamespacesNotFoundCode int = 404
+
+/*
+ListNamespacesNotFound Not Found - The namespaces feature is not enabled on this cluster.
+
+swagger:response listNamespacesNotFound
+*/
+type ListNamespacesNotFound struct {
+
+	/*
+	  In: Body
+	*/
+	Payload *models.ErrorResponse `json:"body,omitempty"`
+}
+
+// NewListNamespacesNotFound creates ListNamespacesNotFound with default headers values
+func NewListNamespacesNotFound() *ListNamespacesNotFound {
+
+	return &ListNamespacesNotFound{}
+}
+
+// WithPayload adds the payload to the list namespaces not found response
+func (o *ListNamespacesNotFound) WithPayload(payload *models.ErrorResponse) *ListNamespacesNotFound {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the list namespaces not found response
+func (o *ListNamespacesNotFound) SetPayload(payload *models.ErrorResponse) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *ListNamespacesNotFound) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(404)
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
+}
+
 // ListNamespacesUnprocessableEntityCode is the HTTP code returned for type ListNamespacesUnprocessableEntity
 const ListNamespacesUnprocessableEntityCode int = 422
 
 /*
-ListNamespacesUnprocessableEntity The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+ListNamespacesUnprocessableEntity The request syntax is correct, but the server couldn't process it.
 
 swagger:response listNamespacesUnprocessableEntity
 */

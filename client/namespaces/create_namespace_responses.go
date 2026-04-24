@@ -52,6 +52,12 @@ func (o *CreateNamespaceReader) ReadResponse(response runtime.ClientResponse, co
 			return nil, err
 		}
 		return nil, result
+	case 404:
+		result := NewCreateNamespaceNotFound()
+		if err := result.readResponse(response, consumer, o.formats); err != nil {
+			return nil, err
+		}
+		return nil, result
 	case 409:
 		result := NewCreateNamespaceConflict()
 		if err := result.readResponse(response, consumer, o.formats); err != nil {
@@ -256,6 +262,74 @@ func (o *CreateNamespaceForbidden) GetPayload() *models.ErrorResponse {
 }
 
 func (o *CreateNamespaceForbidden) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
+
+	o.Payload = new(models.ErrorResponse)
+
+	// response payload
+	if err := consumer.Consume(response.Body(), o.Payload); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
+}
+
+// NewCreateNamespaceNotFound creates a CreateNamespaceNotFound with default headers values
+func NewCreateNamespaceNotFound() *CreateNamespaceNotFound {
+	return &CreateNamespaceNotFound{}
+}
+
+/*
+CreateNamespaceNotFound describes a response with status code 404, with default header values.
+
+Not Found - The namespaces feature is not enabled on this cluster.
+*/
+type CreateNamespaceNotFound struct {
+	Payload *models.ErrorResponse
+}
+
+// IsSuccess returns true when this create namespace not found response has a 2xx status code
+func (o *CreateNamespaceNotFound) IsSuccess() bool {
+	return false
+}
+
+// IsRedirect returns true when this create namespace not found response has a 3xx status code
+func (o *CreateNamespaceNotFound) IsRedirect() bool {
+	return false
+}
+
+// IsClientError returns true when this create namespace not found response has a 4xx status code
+func (o *CreateNamespaceNotFound) IsClientError() bool {
+	return true
+}
+
+// IsServerError returns true when this create namespace not found response has a 5xx status code
+func (o *CreateNamespaceNotFound) IsServerError() bool {
+	return false
+}
+
+// IsCode returns true when this create namespace not found response a status code equal to that given
+func (o *CreateNamespaceNotFound) IsCode(code int) bool {
+	return code == 404
+}
+
+// Code gets the status code for the create namespace not found response
+func (o *CreateNamespaceNotFound) Code() int {
+	return 404
+}
+
+func (o *CreateNamespaceNotFound) Error() string {
+	return fmt.Sprintf("[POST /namespaces/{namespace_id}][%d] createNamespaceNotFound  %+v", 404, o.Payload)
+}
+
+func (o *CreateNamespaceNotFound) String() string {
+	return fmt.Sprintf("[POST /namespaces/{namespace_id}][%d] createNamespaceNotFound  %+v", 404, o.Payload)
+}
+
+func (o *CreateNamespaceNotFound) GetPayload() *models.ErrorResponse {
+	return o.Payload
+}
+
+func (o *CreateNamespaceNotFound) readResponse(response runtime.ClientResponse, consumer runtime.Consumer, formats strfmt.Registry) error {
 
 	o.Payload = new(models.ErrorResponse)
 

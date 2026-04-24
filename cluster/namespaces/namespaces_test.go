@@ -54,11 +54,11 @@ func TestValidateNamespaceName(t *testing.T) {
 		// valid
 		{name: "short valid", input: "foo", wantErr: false},
 		{name: "letters and digits", input: "customer1", wantErr: false},
-		{name: "max length", input: strings.Repeat("a", namespaceNameMaxLength), wantErr: false},
+		{name: "max length", input: strings.Repeat("a", NameMaxLength), wantErr: false},
 		// length
 		{name: "too short", input: "ab", wantErr: true},
 		{name: "empty", input: "", wantErr: true},
-		{name: "too long", input: strings.Repeat("a", namespaceNameMaxLength+1), wantErr: true},
+		{name: "too long", input: strings.Repeat("a", NameMaxLength+1), wantErr: true},
 		// format
 		{name: "uppercase leading", input: "Foo", wantErr: true},
 		{name: "uppercase middle", input: "fooBar", wantErr: true},
@@ -79,7 +79,7 @@ func TestValidateNamespaceName(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateNamespaceName(tc.input)
+			err := ValidateName(tc.input)
 			if tc.wantErr {
 				require.Error(t, err)
 			} else {

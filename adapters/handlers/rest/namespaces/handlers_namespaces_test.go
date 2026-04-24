@@ -12,11 +12,15 @@
 package namespaces
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	nsops "github.com/weaviate/weaviate/adapters/handlers/rest/operations/namespaces"
+	clusternamespaces "github.com/weaviate/weaviate/cluster/namespaces"
 	cmd "github.com/weaviate/weaviate/cluster/proto/api"
 	"github.com/weaviate/weaviate/entities/models"
 	"github.com/weaviate/weaviate/usecases/auth/authorization"
@@ -116,33 +121,40 @@ func TestCreateNamespace_UnprocessableEntity(t *testing.T) {
 	}
 }
 
-func TestCreateNamespace_Conflict(t *testing.T) {
+// TestCreateNamespace_ConflictOnRaftAlreadyExists covers the TOCTOU race:
+// two concurrent creates can both pass validation; the loser must get 409,
+// not 500. The handler translates clusternamespaces.ErrAlreadyExists → 409.
+func TestCreateNamespace_ConflictOnRaftAlreadyExists(t *testing.T) {
 	h, authz, raft := newHandler(t)
 	principal := &models.Principal{}
 	authz.On("Authorize", mock.Anything, principal, authorization.CREATE, authorization.Namespaces("customer1")[0]).Return(nil)
-	raft.On("GetNamespaces", "customer1").Return([]cmd.Namespace{{Name: "customer1"}}, nil)
+	raft.On("AddNamespace", cmd.Namespace{Name: "customer1"}).
+		Return(fmt.Errorf("%w: %q", clusternamespaces.ErrAlreadyExists, "customer1"))
 
 	res := h.createNamespace(nsops.CreateNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
 	_, ok := res.(*nsops.CreateNamespaceConflict)
 	assert.True(t, ok, "expected 409, got %T", res)
 }
 
-func TestCreateNamespace_ExistsCheckError(t *testing.T) {
+// TestCreateNamespace_UnprocessableOnRaftBadRequest covers the defense-in-depth
+// case where an invalid name slips past the handler check and the FSM rejects
+// it. Surface as 422, not 500.
+func TestCreateNamespace_UnprocessableOnRaftBadRequest(t *testing.T) {
 	h, authz, raft := newHandler(t)
 	principal := &models.Principal{}
 	authz.On("Authorize", mock.Anything, principal, authorization.CREATE, authorization.Namespaces("customer1")[0]).Return(nil)
-	raft.On("GetNamespaces", "customer1").Return(nil, errors.New("boom"))
+	raft.On("AddNamespace", cmd.Namespace{Name: "customer1"}).
+		Return(fmt.Errorf("%w: bad payload", clusternamespaces.ErrBadRequest))
 
 	res := h.createNamespace(nsops.CreateNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
-	_, ok := res.(*nsops.CreateNamespaceInternalServerError)
-	assert.True(t, ok, "expected 500, got %T", res)
+	_, ok := res.(*nsops.CreateNamespaceUnprocessableEntity)
+	assert.True(t, ok, "expected 422, got %T", res)
 }
 
 func TestCreateNamespace_RaftAddError(t *testing.T) {
 	h, authz, raft := newHandler(t)
 	principal := &models.Principal{}
 	authz.On("Authorize", mock.Anything, principal, authorization.CREATE, authorization.Namespaces("customer1")[0]).Return(nil)
-	raft.On("GetNamespaces", "customer1").Return([]cmd.Namespace{}, nil)
 	raft.On("AddNamespace", cmd.Namespace{Name: "customer1"}).Return(errors.New("raft boom"))
 
 	res := h.createNamespace(nsops.CreateNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
@@ -154,7 +166,6 @@ func TestCreateNamespace_Created(t *testing.T) {
 	h, authz, raft := newHandler(t)
 	principal := &models.Principal{}
 	authz.On("Authorize", mock.Anything, principal, authorization.CREATE, authorization.Namespaces("customer1")[0]).Return(nil)
-	raft.On("GetNamespaces", "customer1").Return([]cmd.Namespace{}, nil)
 	raft.On("AddNamespace", cmd.Namespace{Name: "customer1"}).Return(nil)
 
 	res := h.createNamespace(nsops.CreateNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
@@ -177,6 +188,16 @@ func TestGetNamespace_Forbidden(t *testing.T) {
 	res := h.getNamespace(nsops.GetNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
 	_, ok := res.(*nsops.GetNamespaceForbidden)
 	assert.True(t, ok, "expected 403, got %T", res)
+}
+
+func TestGetNamespace_InvalidNameRejected(t *testing.T) {
+	h, authz, _ := newHandler(t)
+	principal := &models.Principal{}
+	authz.On("Authorize", mock.Anything, principal, authorization.READ, authorization.Namespaces("BadName")[0]).Return(nil)
+
+	res := h.getNamespace(nsops.GetNamespaceParams{NamespaceID: "BadName", HTTPRequest: req}, principal)
+	_, ok := res.(*nsops.GetNamespaceUnprocessableEntity)
+	assert.True(t, ok, "expected 422, got %T", res)
 }
 
 func TestGetNamespace_NotFound(t *testing.T) {
@@ -229,33 +250,32 @@ func TestDeleteNamespace_Forbidden(t *testing.T) {
 	assert.True(t, ok, "expected 403, got %T", res)
 }
 
-func TestDeleteNamespace_NotFound(t *testing.T) {
+func TestDeleteNamespace_InvalidNameRejected(t *testing.T) {
+	h, authz, _ := newHandler(t)
+	principal := &models.Principal{}
+	authz.On("Authorize", mock.Anything, principal, authorization.DELETE, authorization.Namespaces("BadName")[0]).Return(nil)
+
+	res := h.deleteNamespace(nsops.DeleteNamespaceParams{NamespaceID: "BadName", HTTPRequest: req}, principal)
+	_, ok := res.(*nsops.DeleteNamespaceUnprocessableEntity)
+	assert.True(t, ok, "expected 422, got %T", res)
+}
+
+func TestDeleteNamespace_NotFoundOnRaftErrNotFound(t *testing.T) {
 	h, authz, raft := newHandler(t)
 	principal := &models.Principal{}
 	authz.On("Authorize", mock.Anything, principal, authorization.DELETE, authorization.Namespaces("customer1")[0]).Return(nil)
-	raft.On("GetNamespaces", "customer1").Return([]cmd.Namespace{}, nil)
+	raft.On("DeleteNamespace", "customer1").
+		Return(fmt.Errorf("%w: %q", clusternamespaces.ErrNotFound, "customer1"))
 
 	res := h.deleteNamespace(nsops.DeleteNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
 	_, ok := res.(*nsops.DeleteNamespaceNotFound)
 	assert.True(t, ok, "expected 404, got %T", res)
 }
 
-func TestDeleteNamespace_ExistsCheckError(t *testing.T) {
-	h, authz, raft := newHandler(t)
-	principal := &models.Principal{}
-	authz.On("Authorize", mock.Anything, principal, authorization.DELETE, authorization.Namespaces("customer1")[0]).Return(nil)
-	raft.On("GetNamespaces", "customer1").Return(nil, errors.New("boom"))
-
-	res := h.deleteNamespace(nsops.DeleteNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
-	_, ok := res.(*nsops.DeleteNamespaceInternalServerError)
-	assert.True(t, ok, "expected 500, got %T", res)
-}
-
 func TestDeleteNamespace_RaftDeleteError(t *testing.T) {
 	h, authz, raft := newHandler(t)
 	principal := &models.Principal{}
 	authz.On("Authorize", mock.Anything, principal, authorization.DELETE, authorization.Namespaces("customer1")[0]).Return(nil)
-	raft.On("GetNamespaces", "customer1").Return([]cmd.Namespace{{Name: "customer1"}}, nil)
 	raft.On("DeleteNamespace", "customer1").Return(errors.New("raft boom"))
 
 	res := h.deleteNamespace(nsops.DeleteNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
@@ -267,7 +287,6 @@ func TestDeleteNamespace_NoContent(t *testing.T) {
 	h, authz, raft := newHandler(t)
 	principal := &models.Principal{}
 	authz.On("Authorize", mock.Anything, principal, authorization.DELETE, authorization.Namespaces("customer1")[0]).Return(nil)
-	raft.On("GetNamespaces", "customer1").Return([]cmd.Namespace{{Name: "customer1"}}, nil)
 	raft.On("DeleteNamespace", "customer1").Return(nil)
 
 	res := h.deleteNamespace(nsops.DeleteNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
@@ -357,42 +376,39 @@ func TestListNamespaces_FilterError(t *testing.T) {
 // namespaces feature flag
 // -----------------------------------------------------------------------------
 
-// TestHandlers_Disabled verifies that every endpoint short-circuits with 422
+// TestHandlers_Disabled verifies that every endpoint short-circuits with 404
 // when the namespaces feature flag is off, without calling authz or RAFT.
+// The handlers return a raw middleware.ResponderFunc (not a typed operations
+// response), so we drive it through a httptest recorder and check the status.
 func TestHandlers_Disabled(t *testing.T) {
 	principal := &models.Principal{}
 	cases := []struct {
 		name   string
 		invoke func(h *namespaceHandler) middleware.Responder
-		want   any
 	}{
 		{
 			name: "create",
 			invoke: func(h *namespaceHandler) middleware.Responder {
 				return h.createNamespace(nsops.CreateNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
 			},
-			want: &nsops.CreateNamespaceUnprocessableEntity{},
 		},
 		{
 			name: "get",
 			invoke: func(h *namespaceHandler) middleware.Responder {
 				return h.getNamespace(nsops.GetNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
 			},
-			want: &nsops.GetNamespaceUnprocessableEntity{},
 		},
 		{
 			name: "delete",
 			invoke: func(h *namespaceHandler) middleware.Responder {
 				return h.deleteNamespace(nsops.DeleteNamespaceParams{NamespaceID: "customer1", HTTPRequest: req}, principal)
 			},
-			want: &nsops.DeleteNamespaceUnprocessableEntity{},
 		},
 		{
 			name: "list",
 			invoke: func(h *namespaceHandler) middleware.Responder {
 				return h.listNamespaces(nsops.ListNamespacesParams{HTTPRequest: req}, principal)
 			},
-			want: &nsops.ListNamespacesUnprocessableEntity{},
 		},
 	}
 	for _, tc := range cases {
@@ -400,7 +416,15 @@ func TestHandlers_Disabled(t *testing.T) {
 			h, _, _ := newHandler(t)
 			h.enabled = false
 			res := tc.invoke(h)
-			assert.IsType(t, tc.want, res, "expected %T, got %T", tc.want, res)
+
+			rec := httptest.NewRecorder()
+			res.WriteResponse(rec, runtime.JSONProducer())
+			assert.Equal(t, http.StatusNotFound, rec.Code, "expected 404")
+
+			var body models.ErrorResponse
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+			require.Len(t, body.Error, 1)
+			assert.Contains(t, body.Error[0].Message, "namespaces are not enabled")
 		})
 	}
 }

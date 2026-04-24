@@ -139,6 +139,51 @@ func (o *CreateNamespaceForbidden) WriteResponse(rw http.ResponseWriter, produce
 	}
 }
 
+// CreateNamespaceNotFoundCode is the HTTP code returned for type CreateNamespaceNotFound
+const CreateNamespaceNotFoundCode int = 404
+
+/*
+CreateNamespaceNotFound Not Found - The namespaces feature is not enabled on this cluster.
+
+swagger:response createNamespaceNotFound
+*/
+type CreateNamespaceNotFound struct {
+
+	/*
+	  In: Body
+	*/
+	Payload *models.ErrorResponse `json:"body,omitempty"`
+}
+
+// NewCreateNamespaceNotFound creates CreateNamespaceNotFound with default headers values
+func NewCreateNamespaceNotFound() *CreateNamespaceNotFound {
+
+	return &CreateNamespaceNotFound{}
+}
+
+// WithPayload adds the payload to the create namespace not found response
+func (o *CreateNamespaceNotFound) WithPayload(payload *models.ErrorResponse) *CreateNamespaceNotFound {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the create namespace not found response
+func (o *CreateNamespaceNotFound) SetPayload(payload *models.ErrorResponse) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *CreateNamespaceNotFound) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(404)
+	if o.Payload != nil {
+		payload := o.Payload
+		if err := producer.Produce(rw, payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
+}
+
 // CreateNamespaceConflictCode is the HTTP code returned for type CreateNamespaceConflict
 const CreateNamespaceConflictCode int = 409
 

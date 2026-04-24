@@ -53,14 +53,14 @@ var (
 //
 //   - Must start with a lowercase ASCII letter.
 //   - Subsequent characters are lowercase letters or digits.
-//   - Length in [namespaceNameMinLength, namespaceNameMaxLength].
+//   - Length in [NameMinLength, NameMaxLength].
 //   - Must not collide with a reserved name (see reservedNames).
 //
 // Reserved names are held back for platform/system use (e.g. a future
 // "default" namespace or routing sentinels) and are refused at Add time.
 const (
-	namespaceNameMinLength = 3
-	namespaceNameMaxLength = 36
+	NameMinLength = 3
+	NameMaxLength = 36
 )
 
 var namespaceNameRegex = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
@@ -107,7 +107,7 @@ func (m *Manager) Add(c *cmd.ApplyRequest) error {
 		return fmt.Errorf("%w: %w", ErrBadRequest, err)
 	}
 
-	if err := validateNamespaceName(req.Namespace.Name); err != nil {
+	if err := ValidateName(req.Namespace.Name); err != nil {
 		return fmt.Errorf("%w: %w", ErrBadRequest, err)
 	}
 
@@ -227,10 +227,13 @@ func (m *Manager) Restore(snapshot []byte) error {
 	return nil
 }
 
-// validateNamespaceName enforces the package's naming contract.
-func validateNamespaceName(name string) error {
-	if l := len(name); l < namespaceNameMinLength || l > namespaceNameMaxLength {
-		return fmt.Errorf("namespace name %q must be %d-%d characters", name, namespaceNameMinLength, namespaceNameMaxLength)
+// ValidateName enforces the package's naming contract. It is the single
+// source of truth for namespace name validation and is called both from the
+// REST handler (for fast 422 rejection without a RAFT round-trip) and from
+// the apply path (as a defense-in-depth check).
+func ValidateName(name string) error {
+	if l := len(name); l < NameMinLength || l > NameMaxLength {
+		return fmt.Errorf("namespace name %q must be %d-%d characters", name, NameMinLength, NameMaxLength)
 	}
 	if !namespaceNameRegex.MatchString(name) {
 		return fmt.Errorf("namespace name %q must start with a lowercase letter and contain only lowercase letters and digits", name)

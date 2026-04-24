@@ -977,7 +977,7 @@ func enforceNamespaceStartupInvariants(enabled bool, classNames []string, nsCoun
 	case !enabled && nsCount > 0:
 		return fmt.Errorf("NAMESPACES_ENABLED=false but cluster has %d existing namespace entities; this is not supported", nsCount)
 	case !enabled && namespacedCount > 0:
-		// Guards against disabling namepsaces on a namedspaced cluster.
+		// Guards against disabling namespaces on a namespaced cluster.
 		return fmt.Errorf("NAMESPACES_ENABLED=false but cluster has %d namespace-qualified collection(s) (e.g. %q); refusing to start with inconsistent state", namespacedCount, namespacedExample)
 	}
 	return nil

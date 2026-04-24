@@ -275,7 +275,7 @@ func NewGetNamespaceNotFound() *GetNamespaceNotFound {
 /*
 GetNamespaceNotFound describes a response with status code 404, with default header values.
 
-Not Found - Namespace does not exist.
+Not Found - Namespace does not exist, or the namespaces feature is not enabled on this cluster.
 */
 type GetNamespaceNotFound struct {
 	Payload *models.ErrorResponse
@@ -343,7 +343,7 @@ func NewGetNamespaceUnprocessableEntity() *GetNamespaceUnprocessableEntity {
 /*
 GetNamespaceUnprocessableEntity describes a response with status code 422, with default header values.
 
-The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+The request syntax is correct, but the server couldn't process it due to semantic issues (e.g. invalid name format or reserved name).
 */
 type GetNamespaceUnprocessableEntity struct {
 	Payload *models.ErrorResponse

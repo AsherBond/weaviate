@@ -143,7 +143,7 @@ func (o *GetNamespaceForbidden) WriteResponse(rw http.ResponseWriter, producer r
 const GetNamespaceNotFoundCode int = 404
 
 /*
-GetNamespaceNotFound Not Found - Namespace does not exist.
+GetNamespaceNotFound Not Found - Namespace does not exist, or the namespaces feature is not enabled on this cluster.
 
 swagger:response getNamespaceNotFound
 */
@@ -188,7 +188,7 @@ func (o *GetNamespaceNotFound) WriteResponse(rw http.ResponseWriter, producer ru
 const GetNamespaceUnprocessableEntityCode int = 422
 
 /*
-GetNamespaceUnprocessableEntity The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+GetNamespaceUnprocessableEntity The request syntax is correct, but the server couldn't process it due to semantic issues (e.g. invalid name format or reserved name).
 
 swagger:response getNamespaceUnprocessableEntity
 */

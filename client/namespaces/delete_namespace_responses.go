@@ -263,7 +263,7 @@ func NewDeleteNamespaceNotFound() *DeleteNamespaceNotFound {
 /*
 DeleteNamespaceNotFound describes a response with status code 404, with default header values.
 
-Not Found - Namespace does not exist.
+Not Found - Namespace does not exist, or the namespaces feature is not enabled on this cluster.
 */
 type DeleteNamespaceNotFound struct {
 	Payload *models.ErrorResponse
@@ -331,7 +331,7 @@ func NewDeleteNamespaceUnprocessableEntity() *DeleteNamespaceUnprocessableEntity
 /*
 DeleteNamespaceUnprocessableEntity describes a response with status code 422, with default header values.
 
-The request syntax is correct, but the server couldn't process it (e.g. namespaces are not enabled).
+The request syntax is correct, but the server couldn't process it due to semantic issues (e.g. invalid name format or reserved name).
 */
 type DeleteNamespaceUnprocessableEntity struct {
 	Payload *models.ErrorResponse
