@@ -374,9 +374,11 @@ func policy(permission *models.Permission) (*authorization.Policy, error) {
 	case authorization.McpDomain:
 		resource = CasbinMcp()
 	case authorization.NamespacesDomain:
-		// TODO(namespaces): read per-namespace scope from permission.Namespaces
-		// once the openapi-regenerated field exists (Step 7).
-		resource = CasbinNamespaces("*")
+		name := "*"
+		if permission.Namespaces != nil && permission.Namespaces.Namespace != nil {
+			name = *permission.Namespaces.Namespace
+		}
+		resource = CasbinNamespaces(name)
 	default:
 		return nil, fmt.Errorf("invalid domain: %s", domain)
 
@@ -497,8 +499,9 @@ func permission(policy []string, validatePath bool) (*models.Permission, error) 
 	case authorization.McpDomain:
 		// do nothing
 	case authorization.NamespacesDomain:
-		// TODO(namespaces): populate permission.Namespaces once the
-		// openapi-regenerated field exists (Step 7). Today only Action is set.
+		permission.Namespaces = &models.PermissionNamespaces{
+			Namespace: &splits[1],
+		}
 	case *authorization.All:
 		permission.Backups = authorization.AllBackups
 		permission.Data = authorization.AllData
@@ -510,6 +513,7 @@ func permission(policy []string, validatePath bool) (*models.Permission, error) 
 		permission.Replicate = authorization.AllReplicate
 		permission.Aliases = authorization.AllAliases
 		permission.Groups = authorization.AllOIDCGroups
+		permission.Namespaces = authorization.AllNamespaces
 	case authorization.ClusterDomain:
 		// do nothing
 	default:

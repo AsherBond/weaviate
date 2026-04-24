@@ -98,6 +98,9 @@ var (
 		Collection: All,
 		Alias:      All,
 	}
+	AllNamespaces = &models.PermissionNamespaces{
+		Namespace: All,
+	}
 
 	ComponentName = "RBAC"
 
@@ -611,6 +614,7 @@ func viewerPermissions() []*models.Permission {
 			Users:       AllUsers,
 			Aliases:     AllAliases,
 			Groups:      AllOIDCGroups,
+			Namespaces:  AllNamespaces,
 		})
 	}
 
@@ -633,6 +637,7 @@ func adminPermissions() []*models.Permission {
 			Users:       AllUsers,
 			Aliases:     AllAliases,
 			Groups:      AllOIDCGroups,
+			Namespaces:  AllNamespaces,
 		})
 	}
 
