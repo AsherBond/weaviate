@@ -82,6 +82,8 @@ var resourcePatterns = []string{
 	fmt.Sprintf(`^%s/collections/[^/]+/shards/[^/]+/objects/[^/]+$`, authorization.DataDomain),
 	fmt.Sprintf(`^%s/collections/[^/]+/shards/[^/]+$`, authorization.ReplicateDomain),
 	fmt.Sprintf(`^%s/collections/[^/]+/aliases/[^/]+$`, authorization.AliasesDomain),
+	fmt.Sprintf(`^%s/.*$`, authorization.NamespacesDomain),
+	fmt.Sprintf(`^%s/[^/]+$`, authorization.NamespacesDomain),
 }
 
 func newPolicy(policy []string) *authorization.Policy {
@@ -202,6 +204,16 @@ func CasbinData(collection, shard, object string) string {
 
 func CasbinMcp() string {
 	return authorization.McpDomain
+}
+
+// CasbinNamespaces returns the casbin resource string for a namespace name.
+// An empty name expands to the wildcard pattern.
+func CasbinNamespaces(name string) string {
+	if name == "" {
+		name = "*"
+	}
+	name = strings.ReplaceAll(name, "*", ".*")
+	return fmt.Sprintf("%s/%s", authorization.NamespacesDomain, name)
 }
 
 func extractFromExtAction(inputAction string) (string, string, error) {
@@ -361,6 +373,10 @@ func policy(permission *models.Permission) (*authorization.Policy, error) {
 		resource = CasbinAliases(collection, alias)
 	case authorization.McpDomain:
 		resource = CasbinMcp()
+	case authorization.NamespacesDomain:
+		// TODO(namespaces): read per-namespace scope from permission.Namespaces
+		// once the openapi-regenerated field exists (Step 7).
+		resource = CasbinNamespaces("*")
 	default:
 		return nil, fmt.Errorf("invalid domain: %s", domain)
 
@@ -480,6 +496,9 @@ func permission(policy []string, validatePath bool) (*models.Permission, error) 
 		}
 	case authorization.McpDomain:
 		// do nothing
+	case authorization.NamespacesDomain:
+		// TODO(namespaces): populate permission.Namespaces once the
+		// openapi-regenerated field exists (Step 7). Today only Action is set.
 	case *authorization.All:
 		permission.Backups = authorization.AllBackups
 		permission.Data = authorization.AllData
