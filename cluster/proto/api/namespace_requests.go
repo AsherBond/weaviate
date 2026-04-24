@@ -55,11 +55,3 @@ type QueryGetNamespacesRequest struct {
 type QueryGetNamespacesResponse struct {
 	Namespaces []Namespace
 }
-
-type QueryNamespaceExistsRequest struct {
-	Name string
-}
-
-type QueryNamespaceExistsResponse struct {
-	Exists bool
-}
